@@ -143,9 +143,6 @@ class JPXIndexSessionTimes:
     # ナイトセッション
     NIGHT_START = time(17, 0)
     NIGHT_END = time(6, 0)  # 翌日
-
-    # 年末年始休場
-    YEAR_END_HOLIDAYS = [(12, 31), (1, 1), (1, 2), (1, 3)]
 ```
 
 | Constant | Type | Value | Description |
@@ -154,9 +151,11 @@ class JPXIndexSessionTimes:
 | DAY_END | time | 15:45 | 日中立会終了 |
 | NIGHT_START | time | 17:00 | ナイトセッション開始 |
 | NIGHT_END | time | 06:00 | ナイトセッション終了（翌日） |
-| YEAR_END_HOLIDAYS | list | [(12,31), (1,1), (1,2), (1,3)] | 年末年始休場日 |
 
 **Note**: 立会時間はJPX公式サイトの構造が複雑なため、定数として定義。変更頻度は低く、制度改革時のみ更新が必要。
+
+**休業日判定**: 土日 + JPX公式Excelデータに基づく（年末年始・祝日のハードコード禁止）
+- データソース: https://www.jpx.co.jp/derivatives/rules/holidaytrading/nlsgeu000006hweb-att/nlsgeu000006jgee.xlsx
 
 ---
 

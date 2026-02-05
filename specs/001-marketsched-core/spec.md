@@ -56,8 +56,13 @@ marketsched は、金融市場向けスケジュール管理ライブラリで�
 JPX公式データを一次情報として参照する：
 
 - **取引最終日（SQ日）**: https://www.jpx.co.jp/derivatives/rules/last-trading-day/index.html
+- **休業日データ（Excel）**: https://www.jpx.co.jp/derivatives/rules/holidaytrading/nlsgeu000006hweb-att/nlsgeu000006jgee.xlsx
 - **祝日取引実施日**: https://www.jpx.co.jp/derivatives/rules/holidaytrading/index.html
 - **立会時間**: https://www.jpx.co.jp/derivatives/rules/trading-hours/index.html
+
+**営業日判定ルール**:
+- 土日は休業日
+- それ以外の休業日はJPX公式Excelデータに従う（年末年始・祝日のハードコード禁止）
 
 ---
 
@@ -87,6 +92,13 @@ JPX公式データを一次情報として参照する：
 - Q: 市場IDの粒度は？ → A: 商品カテゴリ単位でID分離（`jpx-index`, `jpx-equity-options`, `jpx-bond` 等）
 - 理由: JPX内でも商品カテゴリにより取引時間が異なるため
 - 初期スコープ: `jpx-index`（指数先物・オプション）のみ実装
+
+### Session 2026-02-05 (#5) - 休業日判定の方針
+
+- Q: 年末年始・祝日の判定方法は？ → A: JPX公式Excelデータのみに従う（ハードコード禁止）
+- データソース: https://www.jpx.co.jp/derivatives/rules/holidaytrading/nlsgeu000006hweb-att/nlsgeu000006jgee.xlsx
+- 土日は休業日（これのみハードコード可）
+- 理由: 祝日取引実施日は年によって異なり、公式データが唯一の正確な情報源
 
 ---
 
@@ -190,7 +202,7 @@ JPX公式データを一次情報として参照する：
 - 限月として13月や0月が指定された場合、バリデーションエラーを返す
 - 2桁年号（例: 99年）は2099年として解釈される（2000〜2099年の範囲）
 - 閏年の2月29日の営業日判定が正しく動作する
-- 年末年始の境界（12/30, 12/31, 1/1, 1/2, 1/3）で正しく営業日判定が行われる
+- 年末年始の境界で正しく営業日判定が行われる（JPX公式Excelデータに基づく、ハードコード禁止）
 - ナイトセッションの日付跨ぎ（17:00〜翌06:00）が正しく処理される
 - JPX公式データに存在しない年月のSQ日取得時に適切なエラーを返す
 - オフライン環境でキャッシュなしの場合、適切なエラーを返す
