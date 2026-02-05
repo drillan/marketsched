@@ -13,6 +13,7 @@ Example:
         True
 """
 
+from marketsched.contract_month import ContractMonth
 from marketsched.exceptions import (
     CacheNotAvailableError,
     ContractMonthParseError,
@@ -35,6 +36,7 @@ __version__ = "0.0.1"
 __all__ = [
     # Core types
     "Market",
+    "ContractMonth",
     "TradingSession",
     # Functions
     "get_market",
