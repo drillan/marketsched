@@ -1,5 +1,80 @@
-"""marketsched: Market calendar, SQ dates, and trading hours management."""
+"""marketsched: Market calendar, SQ dates, and trading hours management.
+
+This package provides tools for managing market calendars, SQ dates,
+and trading hours for Japanese financial markets.
+
+Example:
+    >>> import marketsched
+    >>> market = marketsched.get_market("jpx-index")
+    >>> market.is_business_day(date(2026, 2, 6))
+    True
+"""
+
+from marketsched.exceptions import (
+    CacheNotAvailableError,
+    ContractMonthParseError,
+    DataFetchError,
+    InvalidDataFormatError,
+    MarketNotFoundError,
+    MarketshedError,
+    SQDataNotFoundError,
+    SQNotSupportedError,
+    TimezoneRequiredError,
+)
+from marketsched.market import Market
+from marketsched.registry import MarketRegistry
+from marketsched.session import TradingSession
+
+__version__ = "0.0.1"
+
+__all__ = [
+    # Core types
+    "Market",
+    "TradingSession",
+    # Functions
+    "get_market",
+    "get_available_markets",
+    # Exceptions
+    "MarketshedError",
+    "MarketNotFoundError",
+    "ContractMonthParseError",
+    "SQDataNotFoundError",
+    "SQNotSupportedError",
+    "TimezoneRequiredError",
+    "CacheNotAvailableError",
+    "DataFetchError",
+    "InvalidDataFormatError",
+]
 
 
-def main() -> None:
-    print("Hello from marketsched!")
+def get_market(market_id: str) -> Market:
+    """Get a market instance by ID.
+
+    Args:
+        market_id: The market identifier (e.g., 'jpx-index').
+
+    Returns:
+        An instance of the requested market.
+
+    Raises:
+        MarketNotFoundError: If no market is registered with the given ID.
+
+    Example:
+        >>> market = marketsched.get_market("jpx-index")
+        >>> market.name
+        'JPX Index Futures & Options'
+    """
+    return MarketRegistry.get(market_id)
+
+
+def get_available_markets() -> list[str]:
+    """Get list of all available market IDs.
+
+    Returns:
+        List of market IDs in sorted order.
+
+    Example:
+        >>> marketsched.get_available_markets()
+        ['jpx-index']
+    """
+    return MarketRegistry.get_available_markets()
