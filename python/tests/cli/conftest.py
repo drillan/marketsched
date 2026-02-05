@@ -1,113 +1,106 @@
 """Shared fixtures for CLI tests."""
 
 from collections.abc import Generator
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
+import pyarrow as pa
 import pytest
 
-from marketsched.jpx.data import CacheMetadata
-from marketsched.jpx.data.cache import JPXDataCache
+from marketsched.jpx.data import CacheMetadata, DataType
+from marketsched.jpx.data.cache import ParquetCacheManager
 
 
 @pytest.fixture(autouse=True)
-def setup_test_cache(tmp_path: Path) -> Generator[JPXDataCache, None, None]:
+def setup_test_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Generator[ParquetCacheManager]:
     """Set up a test cache with sample data for all CLI tests.
 
     This fixture automatically runs for all CLI tests and provides
     a temporary cache directory with valid test data.
     """
-    from zoneinfo import ZoneInfo
+    cache_dir = tmp_path / "marketsched"
 
-    import marketsched.jpx.data.cache as cache_module
+    # Monkeypatch DEFAULT_CACHE_DIR so all default-constructed managers use tmp
+    monkeypatch.setattr(
+        ParquetCacheManager,
+        "DEFAULT_CACHE_DIR",
+        cache_dir,
+    )
 
-    # Save original cache
-    original_cache = cache_module._cache
-
-    # Create test cache in temp directory
-    cache = JPXDataCache(cache_dir=tmp_path / "marketsched")
-    cache_module._cache = cache
+    manager = ParquetCacheManager(cache_dir=cache_dir)
+    now = datetime.now(UTC)
+    expires_at = now + timedelta(hours=24)
 
     # Create test SQ dates data
+    contract_months = []
+    last_trading_days = []
     sq_dates = []
+    product_categories = []
+
     for year in range(2024, 2028):
         for month in range(1, 13):
             # Calculate second Friday of each month (approximate SQ date)
             first_day = date(year, month, 1)
-            # Find first Friday
             days_until_friday = (4 - first_day.weekday()) % 7
             first_friday = first_day.replace(day=1 + days_until_friday)
-            # Second Friday is 7 days later
-            sq_date = first_friday.replace(day=first_friday.day + 7)
+            second_friday = first_friday.replace(day=first_friday.day + 7)
 
-            sq_dates.append(
-                {
-                    "year": year,
-                    "month": month,
-                    "sq_date": sq_date,
-                    "product_type": "index",
-                }
-            )
+            contract_months.append(f"{year}{month:02d}")
+            last_trading_days.append(second_friday - timedelta(days=1))
+            sq_dates.append(second_friday)
+            product_categories.append("index_futures_options")
+
+    sq_table = pa.table(
+        {
+            "contract_month": contract_months,
+            "last_trading_day": last_trading_days,
+            "sq_date": sq_dates,
+            "product_category": product_categories,
+        }
+    )
+    sq_metadata = CacheMetadata(
+        data_type=DataType.SQ_DATES,
+        source_url="test://sq_dates",
+        fetched_at=now,
+        expires_at=expires_at,
+        schema_version=1,
+        record_count=len(contract_months),
+    )
+    manager.write(DataType.SQ_DATES, sq_table, sq_metadata)
 
     # Create test holidays data
-    holidays = [
-        # 2026 holidays
+    holiday_table = pa.table(
         {
-            "date": date(2026, 1, 1),
-            "holiday_name": "元日",
-            "is_trading": False,
-            "is_confirmed": True,
-        },
-        {
-            "date": date(2026, 1, 2),
-            "holiday_name": "休業日",
-            "is_trading": False,
-            "is_confirmed": True,
-        },
-        {
-            "date": date(2026, 1, 3),
-            "holiday_name": "休業日",
-            "is_trading": False,
-            "is_confirmed": True,
-        },
-        {
-            "date": date(2026, 1, 12),
-            "holiday_name": "成人の日",
-            "is_trading": False,
-            "is_confirmed": True,
-        },
-        {
-            "date": date(2026, 2, 11),
-            "holiday_name": "建国記念の日",
-            "is_trading": False,
-            "is_confirmed": True,
-        },
-        {
-            "date": date(2026, 2, 23),
-            "holiday_name": "天皇誕生日",
-            "is_trading": False,
-            "is_confirmed": True,
-        },
-    ]
-
-    # Write test data
-    cache.write_sq_dates(sq_dates)
-    cache.write_holidays(holidays)
-
-    # Write metadata
-    now = datetime.now(ZoneInfo("Asia/Tokyo"))
-    metadata = CacheMetadata(
-        last_updated=now,
-        version="0.0.1-test",
-        source_urls={
-            "sq_dates": "test://sq_dates",
-            "holidays": "test://holidays",
-        },
-        cache_valid_until=now + timedelta(hours=24),
+            "date": [
+                date(2026, 1, 1),
+                date(2026, 1, 2),
+                date(2026, 1, 3),
+                date(2026, 1, 12),
+                date(2026, 2, 11),
+                date(2026, 2, 23),
+            ],
+            "holiday_name": [
+                "元日",
+                "休業日",
+                "休業日",
+                "成人の日",
+                "建国記念の日",
+                "天皇誕生日",
+            ],
+            "is_trading": [False, False, False, False, False, False],
+            "is_confirmed": [True, True, True, True, True, True],
+        }
     )
-    cache.write_metadata(metadata)
+    holiday_metadata = CacheMetadata(
+        data_type=DataType.HOLIDAY_TRADING,
+        source_url="test://holidays",
+        fetched_at=now,
+        expires_at=expires_at,
+        schema_version=1,
+        record_count=6,
+    )
+    manager.write(DataType.HOLIDAY_TRADING, holiday_table, holiday_metadata)
 
-    yield cache
-
-    # Restore original cache
-    cache_module._cache = original_cache
+    yield manager

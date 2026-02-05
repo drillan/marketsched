@@ -1,20 +1,22 @@
 """Integration tests for JPXIndex market implementation.
 
 These tests verify the business day and SQ date functionality of JPXIndex.
-Tests use a mock cache to provide predictable test data.
+Tests use a temporary cache with ParquetCacheManager to provide predictable test data.
 """
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+import pyarrow as pa
 import pytest
 
 from marketsched import SQDataNotFoundError, TimezoneRequiredError
 from marketsched.jpx.calendar import JPXCalendar
-from marketsched.jpx.data.cache import JPXDataCache
+from marketsched.jpx.data import CacheMetadata, DataType
+from marketsched.jpx.data.cache import ParquetCacheManager
+from marketsched.jpx.data.query import JPXDataQuery
 from marketsched.jpx.index import JPXIndex
 from marketsched.session import TradingSession
 
@@ -26,147 +28,89 @@ def cache_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def mock_cache(cache_dir: Path) -> JPXDataCache:
+def mock_cache(cache_dir: Path) -> ParquetCacheManager:
     """Create a mock cache with test data."""
-    cache = JPXDataCache(cache_dir)
-    cache._ensure_cache_dir()
+    manager = ParquetCacheManager(cache_dir=cache_dir)
+    now = datetime.now(UTC)
+    expires_at = now + timedelta(hours=24)
 
-    # Write test SQ dates
-    sq_dates = [
-        {
-            "year": 2026,
-            "month": 1,
-            "sq_date": date(2026, 1, 9),
-            "product_type": "index",
-        },
-        {
-            "year": 2026,
-            "month": 2,
-            "sq_date": date(2026, 2, 13),
-            "product_type": "index",
-        },
-        {
-            "year": 2026,
-            "month": 3,
-            "sq_date": date(2026, 3, 13),
-            "product_type": "index",
-        },
-        {
-            "year": 2026,
-            "month": 4,
-            "sq_date": date(2026, 4, 10),
-            "product_type": "index",
-        },
-        {
-            "year": 2026,
-            "month": 5,
-            "sq_date": date(2026, 5, 8),
-            "product_type": "index",
-        },
-        {
-            "year": 2026,
-            "month": 6,
-            "sq_date": date(2026, 6, 12),
-            "product_type": "index",
-        },
-        {
-            "year": 2026,
-            "month": 7,
-            "sq_date": date(2026, 7, 10),
-            "product_type": "index",
-        },
-        {
-            "year": 2026,
-            "month": 8,
-            "sq_date": date(2026, 8, 14),
-            "product_type": "index",
-        },
-        {
-            "year": 2026,
-            "month": 9,
-            "sq_date": date(2026, 9, 11),
-            "product_type": "index",
-        },
-        {
-            "year": 2026,
-            "month": 10,
-            "sq_date": date(2026, 10, 9),
-            "product_type": "index",
-        },
-        {
-            "year": 2026,
-            "month": 11,
-            "sq_date": date(2026, 11, 13),
-            "product_type": "index",
-        },
-        {
-            "year": 2026,
-            "month": 12,
-            "sq_date": date(2026, 12, 11),
-            "product_type": "index",
-        },
+    # SQ dates test data (year/month -> contract_month YYYYMM)
+    sq_data = [
+        ("202601", date(2026, 1, 8), date(2026, 1, 9)),
+        ("202602", date(2026, 2, 12), date(2026, 2, 13)),
+        ("202603", date(2026, 3, 12), date(2026, 3, 13)),
+        ("202604", date(2026, 4, 9), date(2026, 4, 10)),
+        ("202605", date(2026, 5, 7), date(2026, 5, 8)),
+        ("202606", date(2026, 6, 11), date(2026, 6, 12)),
+        ("202607", date(2026, 7, 9), date(2026, 7, 10)),
+        ("202608", date(2026, 8, 13), date(2026, 8, 14)),
+        ("202609", date(2026, 9, 10), date(2026, 9, 11)),
+        ("202610", date(2026, 10, 8), date(2026, 10, 9)),
+        ("202611", date(2026, 11, 12), date(2026, 11, 13)),
+        ("202612", date(2026, 12, 10), date(2026, 12, 11)),
     ]
-    cache.write_sq_dates(sq_dates)
 
-    # Write test holiday data
-    # Includes year-end holidays (12/31 - 1/3) and some holiday trading days
-    holidays: list[dict[str, Any]] = [
-        # Year-end/New Year holidays (non-trading)
+    sq_table = pa.table(
         {
-            "date": date(2025, 12, 31),
-            "holiday_name": "大晦日",
-            "is_trading": False,
-            "is_confirmed": True,
-        },
-        {
-            "date": date(2026, 1, 1),
-            "holiday_name": "元日",
-            "is_trading": False,
-            "is_confirmed": True,
-        },
-        {
-            "date": date(2026, 1, 2),
-            "holiday_name": "正月休み",
-            "is_trading": False,
-            "is_confirmed": True,
-        },
-        {
-            "date": date(2026, 1, 3),
-            "holiday_name": "正月休み",
-            "is_trading": False,
-            "is_confirmed": True,
-        },
-        # Coming of Age Day - holiday trading day (trading)
-        {
-            "date": date(2026, 1, 12),
-            "holiday_name": "成人の日",
-            "is_trading": True,
-            "is_confirmed": True,
-        },
-        # National Foundation Day - not trading
-        {
-            "date": date(2026, 2, 11),
-            "holiday_name": "建国記念の日",
-            "is_trading": False,
-            "is_confirmed": True,
-        },
-        # Emperor's Birthday - not trading
-        {
-            "date": date(2026, 2, 23),
-            "holiday_name": "天皇誕生日",
-            "is_trading": False,
-            "is_confirmed": True,
-        },
-    ]
-    cache.write_holidays(holidays)
+            "contract_month": [r[0] for r in sq_data],
+            "last_trading_day": [r[1] for r in sq_data],
+            "sq_date": [r[2] for r in sq_data],
+            "product_category": ["index_futures_options"] * len(sq_data),
+        }
+    )
+    sq_metadata = CacheMetadata(
+        data_type=DataType.SQ_DATES,
+        source_url="test://sq_dates",
+        fetched_at=now,
+        expires_at=expires_at,
+        schema_version=1,
+        record_count=len(sq_data),
+    )
+    manager.write(DataType.SQ_DATES, sq_table, sq_metadata)
 
-    return cache
+    # Holiday test data
+    holiday_table = pa.table(
+        {
+            "date": [
+                date(2025, 12, 31),
+                date(2026, 1, 1),
+                date(2026, 1, 2),
+                date(2026, 1, 3),
+                date(2026, 1, 12),
+                date(2026, 2, 11),
+                date(2026, 2, 23),
+            ],
+            "holiday_name": [
+                "大晦日",
+                "元日",
+                "正月休み",
+                "正月休み",
+                "成人の日",
+                "建国記念の日",
+                "天皇誕生日",
+            ],
+            "is_trading": [False, False, False, False, True, False, False],
+            "is_confirmed": [True, True, True, True, True, True, True],
+        }
+    )
+    holiday_metadata = CacheMetadata(
+        data_type=DataType.HOLIDAY_TRADING,
+        source_url="test://holidays",
+        fetched_at=now,
+        expires_at=expires_at,
+        schema_version=1,
+        record_count=7,
+    )
+    manager.write(DataType.HOLIDAY_TRADING, holiday_table, holiday_metadata)
+
+    return manager
 
 
 @pytest.fixture
-def market(mock_cache: JPXDataCache) -> JPXIndex:
+def market(mock_cache: ParquetCacheManager) -> JPXIndex:
     """Create a JPXIndex with mock cache."""
-    calendar = JPXCalendar(mock_cache)
+    data_query = JPXDataQuery(cache_manager=mock_cache)
+    calendar = JPXCalendar(data_query=data_query)
     return JPXIndex(calendar)
 
 

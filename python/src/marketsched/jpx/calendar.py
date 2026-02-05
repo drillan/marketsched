@@ -8,11 +8,10 @@ All holiday data is loaded from the cache (Parquet files), following
 the Constitution rule that holiday dates must not be hardcoded.
 """
 
-import warnings
 from datetime import date, timedelta
 
 from marketsched.exceptions import SQDataNotFoundError
-from marketsched.jpx.data.cache import JPXDataCache, get_cache
+from marketsched.jpx.data.query import JPXDataQuery
 
 # Maximum days to search for next/previous business day
 # Prevents infinite loops in case of corrupted cache data
@@ -25,23 +24,21 @@ class JPXCalendar:
     Provides business day determination and SQ date lookup.
 
     Attributes:
-        cache: JPXDataCache instance for data access.
+        data_query: JPXDataQuery instance for data access.
     """
 
-    def __init__(self, cache: JPXDataCache | None = None) -> None:
+    def __init__(self, data_query: JPXDataQuery | None = None) -> None:
         """Initialize the calendar.
 
         Args:
-            cache: Custom cache instance. If None, uses global cache.
+            data_query: Custom data query instance. Defaults to JPXDataQuery().
         """
-        self._cache = cache
+        self._data_query = data_query if data_query is not None else JPXDataQuery()
 
     @property
-    def cache(self) -> JPXDataCache:
-        """Get the cache instance."""
-        if self._cache is None:
-            self._cache = get_cache()
-        return self._cache
+    def data_query(self) -> JPXDataQuery:
+        """Get the data query instance."""
+        return self._data_query
 
     def _is_weekend(self, d: date) -> bool:
         """Check if date is a weekend.
@@ -77,11 +74,11 @@ class JPXCalendar:
             return False
 
         # Check if it's a holiday trading day (special trading on holidays)
-        if self.cache.is_holiday_trading_day(d):
+        if self._data_query.is_holiday_trading_day(d):
             return True
 
         # Check if it's a non-trading holiday
-        non_trading_holidays = self.cache.get_non_trading_holidays()
+        non_trading_holidays = self._data_query.get_non_trading_holidays()
         return d not in non_trading_holidays
 
     def next_business_day(self, d: date) -> date:
@@ -177,7 +174,7 @@ class JPXCalendar:
             SQDataNotFoundError: If SQ data is not available.
             CacheNotAvailableError: If cache is not available.
         """
-        result = self.cache.get_sq_date(year, month)
+        result = self._data_query.get_sq_date(year, month)
         if result is None:
             raise SQDataNotFoundError(year, month)
         return result
@@ -211,34 +208,7 @@ class JPXCalendar:
             SQDataNotFoundError: If no SQ data is available for the year.
             CacheNotAvailableError: If cache is not available.
         """
-        dates = self.cache.get_sq_dates_for_year(year)
+        dates = self._data_query.get_sq_dates_for_year(year)
         if not dates:
             raise SQDataNotFoundError(year, 1)
         return dates
-
-
-# Global calendar instance
-_calendar: JPXCalendar | None = None
-
-
-def get_calendar(cache: JPXDataCache | None = None) -> JPXCalendar:
-    """Get the global calendar instance.
-
-    Args:
-        cache: Custom cache instance (only used on first call).
-            If the calendar is already initialized and cache is provided,
-            a warning will be issued and the argument will be ignored.
-
-    Returns:
-        JPXCalendar instance.
-    """
-    global _calendar
-    if _calendar is None:
-        _calendar = JPXCalendar(cache)
-    elif cache is not None:
-        warnings.warn(
-            "カレンダーは既に初期化されています。cache 引数は無視されます。",
-            UserWarning,
-            stacklevel=2,
-        )
-    return _calendar

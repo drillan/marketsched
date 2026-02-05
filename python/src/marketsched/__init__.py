@@ -15,6 +15,7 @@ Example:
 
 # Import market implementations to register them
 import marketsched.jpx  # noqa: F401 - registers JPXIndex
+from marketsched.cache import clear_cache, get_cache_status, update_cache
 from marketsched.contract_month import ContractMonth
 from marketsched.exceptions import (
     CacheNotAvailableError,
@@ -29,6 +30,7 @@ from marketsched.exceptions import (
     SQNotSupportedError,
     TimezoneRequiredError,
 )
+from marketsched.jpx.data import DataType
 from marketsched.market import Market
 from marketsched.registry import MarketRegistry
 from marketsched.session import TradingSession
@@ -39,10 +41,15 @@ __all__ = [
     # Core types
     "Market",
     "ContractMonth",
+    "DataType",
     "TradingSession",
     # Functions
     "get_market",
     "get_available_markets",
+    # Cache functions
+    "update_cache",
+    "clear_cache",
+    "get_cache_status",
     # Exceptions
     "MarketschedError",
     "MarketshedError",  # Backwards compatibility alias

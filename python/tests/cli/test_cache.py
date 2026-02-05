@@ -22,13 +22,15 @@ class TestCacheStatus:
     """Tests for 'mks cache status' command."""
 
     def test_cache_status_json(self) -> None:
-        """Test cache status returns JSON with cache info."""
+        """Test cache status returns JSON with per-type cache info."""
         result = runner.invoke(app, ["cache", "status"])
         assert result.exit_code == 0
         data = json.loads(result.stdout)
-        # Should have basic status fields
-        assert "cache_dir" in data or "path" in data
-        assert "exists" in data or "initialized" in data or "status" in data
+        # Should have entries for each data type
+        assert "sq_dates" in data
+        assert "holiday_trading" in data
+        assert "cache_path" in data["sq_dates"]
+        assert "is_valid" in data["sq_dates"]
 
     def test_cache_status_text_format(self) -> None:
         """Test cache status with --format text (option before subcommand)."""

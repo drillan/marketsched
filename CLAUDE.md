@@ -48,12 +48,12 @@ TDD サイクル（Red → Green → Refactor）に従う。コアライブラ�
 
 ## Active Technologies
 
-- Python 3.10+（ZoneInfo、match文、型ユニオン演算子使用） + Pydantic, Typer, httpx, pyarrow, openpyxl (002-marketsched-python)
+- Python 3.13+（ZoneInfo、match文、型ユニオン演算子、StrEnum使用） + Pydantic, Typer, httpx, pyarrow, openpyxl (002-marketsched-python)
 - Parquetファイル（~/.cache/marketsched/） (002-marketsched-python)
 
 ## Recent Changes
 
-- 002-marketsched-python: Added Python 3.10+（ZoneInfo、match文、型ユニオン演算子使用） + Pydantic, Typer, httpx, pyarrow, openpyxl
+- 002-marketsched-python: Added Python 3.13+（ZoneInfo、match文、型ユニオン演算子、StrEnum使用） + Pydantic, Typer, httpx, pyarrow, openpyxl
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->

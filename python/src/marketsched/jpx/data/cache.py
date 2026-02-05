@@ -1,361 +1,218 @@
-"""Parquet cache manager for JPX market data.
+"""Parquet cache manager for JPX data.
 
-This module provides functionality to read and write market data
-(SQ dates, holiday trading days) in Parquet format.
+This module provides a cache manager that stores data in Parquet format
+with metadata for expiration tracking.
 
-Cache location: ~/.cache/marketsched/
+Example:
+    >>> from marketsched.jpx.data.cache import ParquetCacheManager
+    >>> manager = ParquetCacheManager()
+    >>> if manager.is_valid("sq_dates"):
+    ...     table = manager.read("sq_dates")
 """
 
-import json
-import warnings
-from datetime import date, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
-from zoneinfo import ZoneInfo
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from marketsched.exceptions import CacheNotAvailableError, InvalidDataFormatError
-from marketsched.jpx.data import CacheMetadata
+from marketsched.jpx.data import CacheInfo, CacheMetadata, DataType
 
-# Default cache directory
-DEFAULT_CACHE_DIR = Path.home() / ".cache" / "marketsched"
-
-# Cache validity period (24 hours)
-CACHE_VALIDITY_HOURS = 24
-
-# Parquet file names
-SQ_DATES_FILE = "sq_dates.parquet"
-HOLIDAYS_FILE = "holidays.parquet"
-METADATA_FILE = "metadata.json"
-
-# Expected schemas
-SQ_DATES_SCHEMA = pa.schema(
-    [
-        ("year", pa.int32()),
-        ("month", pa.int32()),
-        ("sq_date", pa.date32()),
-        ("product_type", pa.string()),
-    ]
-)
-
-HOLIDAYS_SCHEMA = pa.schema(
-    [
-        ("date", pa.date32()),
-        ("holiday_name", pa.string()),
-        ("is_trading", pa.bool_()),
-        ("is_confirmed", pa.bool_()),
-    ]
-)
+__all__ = ["ParquetCacheManager"]
 
 
-class JPXDataCache:
-    """Cache manager for JPX market data.
+class ParquetCacheManager:
+    """Manages Parquet-based cache for JPX market data.
 
-    Handles reading and writing of SQ dates and holiday trading data
-    in Parquet format.
+    This class handles reading, writing, and validating cached data.
+    Metadata is stored within the Parquet file's custom metadata field.
 
     Attributes:
-        cache_dir: Path to the cache directory.
+        cache_dir: Directory where cache files are stored.
+        expiry: Duration after which cache is considered expired.
+
+    Example:
+        >>> manager = ParquetCacheManager()
+        >>> table = manager.read("sq_dates")
+        >>> if table is None:
+        ...     # Fetch and cache new data
+        ...     pass
     """
 
-    def __init__(self, cache_dir: Path | None = None) -> None:
+    DEFAULT_CACHE_DIR = Path.home() / ".cache" / "marketsched"
+    DEFAULT_EXPIRY = timedelta(hours=24)
+    METADATA_KEY = b"marketsched_metadata"
+
+    def __init__(
+        self,
+        cache_dir: Path | None = None,
+        expiry: timedelta | None = None,
+    ) -> None:
         """Initialize the cache manager.
 
         Args:
-            cache_dir: Custom cache directory. Defaults to ~/.cache/marketsched/.
+            cache_dir: Directory for cache files. Defaults to ~/.cache/marketsched/.
+            expiry: Cache expiration duration. Defaults to 24 hours.
         """
-        self.cache_dir = cache_dir or DEFAULT_CACHE_DIR
-
-    def _ensure_cache_dir(self) -> None:
-        """Create cache directory if it doesn't exist."""
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self._cache_dir = cache_dir if cache_dir is not None else self.DEFAULT_CACHE_DIR
+        self._expiry = expiry if expiry is not None else self.DEFAULT_EXPIRY
 
     @property
-    def sq_dates_path(self) -> Path:
-        """Path to SQ dates Parquet file."""
-        return self.cache_dir / SQ_DATES_FILE
+    def cache_dir(self) -> Path:
+        """Return the cache directory path."""
+        return self._cache_dir
 
     @property
-    def holidays_path(self) -> Path:
-        """Path to holidays Parquet file."""
-        return self.cache_dir / HOLIDAYS_FILE
+    def expiry(self) -> timedelta:
+        """Return the cache expiry duration."""
+        return self._expiry
 
-    @property
-    def metadata_path(self) -> Path:
-        """Path to metadata JSON file."""
-        return self.cache_dir / METADATA_FILE
+    def _get_cache_path(self, data_type: DataType | str) -> Path:
+        """Get the file path for a cache type."""
+        return self._cache_dir / f"{data_type}.parquet"
 
-    def is_cache_available(self) -> bool:
-        """Check if cache files exist and are valid.
-
-        Returns:
-            True if cache is available and not expired.
-
-        Raises:
-            InvalidDataFormatError: If cache metadata is corrupted.
-        """
-        if not self.metadata_path.exists():
-            return False
-
-        try:
-            metadata = self.read_metadata()
-            now = datetime.now(ZoneInfo("Asia/Tokyo"))
-            return now < metadata.cache_valid_until
-        except FileNotFoundError:
-            return False
-        # InvalidDataFormatError is intentionally NOT caught here.
-        # Corrupted cache should be reported to the user, not silently ignored.
-
-    def read_metadata(self) -> CacheMetadata:
-        """Read cache metadata.
-
-        Returns:
-            CacheMetadata instance.
-
-        Raises:
-            CacheNotAvailableError: If metadata file doesn't exist.
-            InvalidDataFormatError: If metadata format is invalid.
-        """
-        if not self.metadata_path.exists():
-            raise CacheNotAvailableError(
-                "キャッシュが存在しません。`mks cache update` を実行してください。"
-            )
-
-        try:
-            with self.metadata_path.open("r", encoding="utf-8") as f:
-                data = json.load(f)
-            return CacheMetadata.model_validate(data)
-        except (json.JSONDecodeError, ValueError) as e:
-            raise InvalidDataFormatError(
-                f"メタデータファイルの形式が不正です: {e}"
-            ) from e
-
-    def write_metadata(self, metadata: CacheMetadata) -> None:
-        """Write cache metadata.
+    def read(self, data_type: DataType | str) -> pa.Table | None:
+        """Read cached data from Parquet file.
 
         Args:
-            metadata: CacheMetadata instance to write.
-        """
-        self._ensure_cache_dir()
-        with self.metadata_path.open("w", encoding="utf-8") as f:
-            json.dump(metadata.model_dump(mode="json"), f, ensure_ascii=False, indent=2)
+            data_type: Type identifier (e.g., DataType.SQ_DATES).
 
-    def _validate_schema(
-        self, table: pa.Table, expected_schema: pa.Schema, file_name: str
+        Returns:
+            PyArrow Table with the cached data, or None if cache doesn't exist.
+        """
+        cache_path = self._get_cache_path(data_type)
+        if not cache_path.exists():
+            return None
+
+        return pq.read_table(cache_path)
+
+    def write(
+        self,
+        data_type: DataType | str,
+        table: pa.Table,
+        metadata: CacheMetadata,
     ) -> None:
-        """Validate that table schema matches expected schema.
+        """Write data to cache with metadata.
+
+        The metadata is stored in the Parquet file's custom metadata field.
 
         Args:
-            table: PyArrow table to validate.
-            expected_schema: Expected schema.
-            file_name: File name for error message.
+            data_type: Type identifier (e.g., DataType.SQ_DATES).
+            table: PyArrow Table containing the data to cache.
+            metadata: CacheMetadata with fetch and expiry information.
 
         Raises:
-            InvalidDataFormatError: If schema doesn't match.
+            ValueError: If data_type does not match metadata.data_type.
         """
-        for field in expected_schema:
-            if field.name not in table.schema.names:
-                raise InvalidDataFormatError(
-                    f"{file_name}: 必須カラム '{field.name}' がありません"
-                )
+        data_type_str = str(data_type)
+        metadata_type_str = str(metadata.data_type)
+        if data_type_str != metadata_type_str:
+            msg = f"data_type mismatch: argument={data_type_str}, metadata={metadata_type_str}"
+            raise ValueError(msg)
 
-    def read_sq_dates(self) -> list[dict[str, Any]]:
-        """Read SQ dates from cache.
+        self._cache_dir.mkdir(parents=True, exist_ok=True)
 
-        Returns:
-            List of SQ date records.
+        existing_metadata = table.schema.metadata or {}
+        new_metadata = {
+            **existing_metadata,
+            self.METADATA_KEY: metadata.model_dump_json().encode(),
+        }
+        table = table.replace_schema_metadata(new_metadata)
 
-        Raises:
-            CacheNotAvailableError: If cache doesn't exist.
-            InvalidDataFormatError: If data format is invalid.
-        """
-        if not self.sq_dates_path.exists():
-            raise CacheNotAvailableError(
-                "SQ日データのキャッシュが存在しません。`mks cache update` を実行してください。"
-            )
+        cache_path = self._get_cache_path(data_type)
+        pq.write_table(table, cache_path)
 
-        try:
-            table = pq.read_table(self.sq_dates_path)
-            self._validate_schema(table, SQ_DATES_SCHEMA, SQ_DATES_FILE)
-            result: list[dict[str, Any]] = table.to_pylist()
-            return result
-        except pa.ArrowInvalid as e:
-            raise InvalidDataFormatError(f"SQ日データの形式が不正です: {e}") from e
+    def _read_metadata(self, data_type: DataType | str) -> CacheMetadata | None:
+        """Read metadata from cached Parquet file.
 
-    def write_sq_dates(self, records: list[dict[str, Any]]) -> None:
-        """Write SQ dates to cache.
+        Uses pq.read_schema to read only the file footer, avoiding
+        loading the entire dataset into memory.
 
         Args:
-            records: List of SQ date records with keys:
-                - year: int
-                - month: int
-                - sq_date: date
-                - product_type: str
-        """
-        self._ensure_cache_dir()
-        table = pa.Table.from_pylist(records, schema=SQ_DATES_SCHEMA)
-        pq.write_table(table, self.sq_dates_path)
-
-    def read_holidays(self) -> list[dict[str, Any]]:
-        """Read holiday trading data from cache.
+            data_type: Type identifier.
 
         Returns:
-            List of holiday trading records.
-
-        Raises:
-            CacheNotAvailableError: If cache doesn't exist.
-            InvalidDataFormatError: If data format is invalid.
+            CacheMetadata if cache exists and has metadata, None otherwise.
         """
-        if not self.holidays_path.exists():
-            raise CacheNotAvailableError(
-                "休業日データのキャッシュが存在しません。`mks cache update` を実行してください。"
-            )
+        cache_path = self._get_cache_path(data_type)
+        if not cache_path.exists():
+            return None
 
-        try:
-            table = pq.read_table(self.holidays_path)
-            self._validate_schema(table, HOLIDAYS_SCHEMA, HOLIDAYS_FILE)
-            result: list[dict[str, Any]] = table.to_pylist()
-            return result
-        except pa.ArrowInvalid as e:
-            raise InvalidDataFormatError(f"休業日データの形式が不正です: {e}") from e
+        schema = pq.read_schema(cache_path)
+        if schema.metadata is None:
+            return None
 
-    def write_holidays(self, records: list[dict[str, Any]]) -> None:
-        """Write holiday trading data to cache.
+        metadata_json = schema.metadata.get(self.METADATA_KEY)
+        if metadata_json is None:
+            return None
+
+        return CacheMetadata.model_validate_json(metadata_json)
+
+    def is_valid(self, data_type: DataType | str) -> bool:
+        """Check if cache exists and is within expiry period.
 
         Args:
-            records: List of holiday records with keys:
-                - date: date
-                - holiday_name: str
-                - is_trading: bool
-                - is_confirmed: bool
+            data_type: Type identifier (e.g., DataType.SQ_DATES).
+
+        Returns:
+            True if cache exists and hasn't expired, False otherwise.
         """
-        self._ensure_cache_dir()
-        table = pa.Table.from_pylist(records, schema=HOLIDAYS_SCHEMA)
-        pq.write_table(table, self.holidays_path)
+        metadata = self._read_metadata(data_type)
+        if metadata is None:
+            return False
 
-    def clear(self) -> None:
-        """Clear all cache files."""
-        for path in [self.sq_dates_path, self.holidays_path, self.metadata_path]:
-            if path.exists():
-                path.unlink()
+        now = datetime.now(UTC)
+        return now < metadata.expires_at
 
-    def get_sq_date(
-        self, year: int, month: int, product_type: str = "index"
-    ) -> date | None:
-        """Get SQ date for specific year and month.
+    def get_info(self, data_type: DataType | str) -> CacheInfo:
+        """Get information about a cache entry.
 
         Args:
-            year: Year.
-            month: Month (1-12).
-            product_type: Product type (default: "index").
+            data_type: Type identifier (e.g., DataType.SQ_DATES).
 
         Returns:
-            SQ date or None if not found.
-
-        Raises:
-            CacheNotAvailableError: If cache doesn't exist.
+            CacheInfo with cache status and metadata.
         """
-        records = self.read_sq_dates()
-        for record in records:
-            if (
-                record["year"] == year
-                and record["month"] == month
-                and record["product_type"] == product_type
-            ):
-                sq_date: date = record["sq_date"]
-                return sq_date
-        return None
+        cache_path = self._get_cache_path(data_type)
+        metadata = self._read_metadata(data_type)
 
-    def get_sq_dates_for_year(
-        self, year: int, product_type: str = "index"
-    ) -> list[date]:
-        """Get all SQ dates for a year.
-
-        Args:
-            year: Year.
-            product_type: Product type (default: "index").
-
-        Returns:
-            List of SQ dates in ascending order.
-
-        Raises:
-            CacheNotAvailableError: If cache doesn't exist.
-        """
-        records = self.read_sq_dates()
-        dates = [
-            record["sq_date"]
-            for record in records
-            if record["year"] == year and record["product_type"] == product_type
-        ]
-        return sorted(dates)
-
-    def is_holiday_trading_day(self, d: date) -> bool:
-        """Check if a date is a holiday trading day.
-
-        Args:
-            d: Date to check.
-
-        Returns:
-            True if the date is a holiday trading day.
-
-        Raises:
-            CacheNotAvailableError: If cache doesn't exist.
-        """
-        records = self.read_holidays()
-        return any(record["date"] == d and record["is_trading"] for record in records)
-
-    def is_holiday(self, d: date) -> bool:
-        """Check if a date is a holiday (including non-trading holidays).
-
-        Args:
-            d: Date to check.
-
-        Returns:
-            True if the date is a holiday.
-
-        Raises:
-            CacheNotAvailableError: If cache doesn't exist.
-        """
-        records = self.read_holidays()
-        return any(record["date"] == d for record in records)
-
-    def get_non_trading_holidays(self) -> set[date]:
-        """Get set of non-trading holiday dates.
-
-        Returns:
-            Set of dates that are holidays and NOT trading days.
-
-        Raises:
-            CacheNotAvailableError: If cache doesn't exist.
-        """
-        records = self.read_holidays()
-        return {record["date"] for record in records if not record["is_trading"]}
-
-
-# Global cache instance
-_cache: JPXDataCache | None = None
-
-
-def get_cache(cache_dir: Path | None = None) -> JPXDataCache:
-    """Get the global cache instance.
-
-    Args:
-        cache_dir: Custom cache directory (only used on first call).
-            If the cache is already initialized and cache_dir is provided,
-            a warning will be issued and the argument will be ignored.
-
-    Returns:
-        JPXDataCache instance.
-    """
-    global _cache
-    if _cache is None:
-        _cache = JPXDataCache(cache_dir)
-    elif cache_dir is not None:
-        warnings.warn(
-            f"キャッシュは既に初期化されています。cache_dir={cache_dir} は無視されます。",
-            UserWarning,
-            stacklevel=2,
+        data_type_enum = (
+            DataType(data_type) if isinstance(data_type, str) else data_type
         )
-    return _cache
+
+        if metadata is None:
+            return CacheInfo(
+                data_type=data_type_enum,
+                cache_path=str(cache_path),
+                is_valid=False,
+                fetched_at=None,
+                expires_at=None,
+                record_count=None,
+            )
+
+        now = datetime.now(UTC)
+        is_valid = now < metadata.expires_at
+
+        return CacheInfo(
+            data_type=data_type_enum,
+            cache_path=str(cache_path),
+            is_valid=is_valid,
+            fetched_at=metadata.fetched_at,
+            expires_at=metadata.expires_at,
+            record_count=metadata.record_count,
+        )
+
+    def clear(self, data_type: DataType | str | None = None) -> None:
+        """Clear cached data.
+
+        Args:
+            data_type: Type to clear. If None, clears all caches.
+        """
+        if data_type is not None:
+            cache_path = self._get_cache_path(data_type)
+            if cache_path.exists():
+                cache_path.unlink()
+        else:
+            if self._cache_dir.exists():
+                for parquet_file in self._cache_dir.glob("*.parquet"):
+                    parquet_file.unlink()

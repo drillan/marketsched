@@ -5,7 +5,7 @@ and subcommand registration.
 """
 
 from datetime import date
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Any
 
 import typer
@@ -13,7 +13,7 @@ import typer
 import marketsched
 
 
-class OutputFormat(str, Enum):
+class OutputFormat(StrEnum):
     """Output format options."""
 
     JSON = "json"
