@@ -21,9 +21,9 @@ from __future__ import annotations
 
 import re
 from functools import total_ordering
-from typing_extensions import Self
 
 from pydantic import BaseModel, ConfigDict, field_validator
+from typing_extensions import Self
 
 from marketsched.exceptions import ContractMonthParseError
 

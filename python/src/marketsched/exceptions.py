@@ -126,11 +126,13 @@ class CacheNotAvailableError(MarketschedError):
     - Network is unavailable and no cached data exists
     """
 
-    def __init__(self) -> None:
-        super().__init__(
-            "Cache data is not available and cannot be fetched. "
-            "Please connect to the internet and run 'mks cache update'."
-        )
+    def __init__(self, message: str | None = None) -> None:
+        if message is None:
+            message = (
+                "Cache data is not available and cannot be fetched. "
+                "Please connect to the internet and run 'mks cache update'."
+            )
+        super().__init__(message)
 
 
 class DataFetchError(MarketschedError):
