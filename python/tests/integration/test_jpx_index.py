@@ -7,6 +7,7 @@ Tests use a mock cache to provide predictable test data.
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -470,6 +471,69 @@ class TestIsTradingHours:
         dt = datetime(2026, 2, 6, 10, 0)  # No timezone
         with pytest.raises(TimezoneRequiredError):
             market.is_trading_hours(dt)
+
+
+class TestCurrentTimeSession:
+    """Test get_session() and is_trading_hours() with current time (US7)."""
+
+    def test_get_session_without_argument(self, market: JPXIndex) -> None:
+        """get_session() without argument should use current time in market timezone (JST)."""
+        # Mock datetime.now to return a known time during DAY session
+        mock_now = datetime(2026, 2, 6, 10, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
+        with patch("marketsched.jpx.index.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            session = market.get_session()
+            assert session == TradingSession.DAY
+
+    def test_get_session_without_argument_night(self, market: JPXIndex) -> None:
+        """get_session() without argument during night session."""
+        mock_now = datetime(2026, 2, 6, 20, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
+        with patch("marketsched.jpx.index.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            session = market.get_session()
+            assert session == TradingSession.NIGHT
+
+    def test_get_session_without_argument_closed(self, market: JPXIndex) -> None:
+        """get_session() without argument during closed period."""
+        # Morning gap (06:00-08:44)
+        mock_now = datetime(2026, 2, 6, 7, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
+        with patch("marketsched.jpx.index.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            session = market.get_session()
+            assert session == TradingSession.CLOSED
+
+    def test_is_trading_hours_without_argument(self, market: JPXIndex) -> None:
+        """is_trading_hours() without argument should use current time in market timezone (JST)."""
+        # During DAY session
+        mock_now = datetime(2026, 2, 6, 10, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
+        with patch("marketsched.jpx.index.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            assert market.is_trading_hours() is True
+
+    def test_is_trading_hours_without_argument_closed(self, market: JPXIndex) -> None:
+        """is_trading_hours() without argument during closed period."""
+        # During gap period
+        mock_now = datetime(2026, 2, 6, 16, 30, tzinfo=ZoneInfo("Asia/Tokyo"))
+        with patch("marketsched.jpx.index.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            assert market.is_trading_hours() is False
+
+    def test_is_trading_hours_on_weekend_documents_behavior(
+        self, market: JPXIndex
+    ) -> None:
+        """Document behavior: is_trading_hours() checks time only, not business day.
+
+        This test documents the current behavior where is_trading_hours()
+        only checks if the time falls within trading hours, without considering
+        whether it's a business day. Users should use is_business_day() separately
+        if they need to check both conditions.
+        """
+        # Saturday during DAY session hours
+        mock_now = datetime(2026, 2, 7, 10, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
+        with patch("marketsched.jpx.index.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            # Current behavior: returns True (time-based only)
+            assert market.is_trading_hours() is True
 
 
 class TestSessionBoundaries:
