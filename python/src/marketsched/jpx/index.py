@@ -8,7 +8,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from marketsched.exceptions import TimezoneRequiredError
-from marketsched.jpx.calendar import JPXCalendar, get_calendar
+from marketsched.jpx.calendar import JPXCalendar
 from marketsched.jpx.session import JPXIndexSessionTimes
 from marketsched.registry import MarketRegistry
 from marketsched.session import TradingSession
@@ -43,7 +43,7 @@ class JPXIndex:
 
         Args:
             calendar: Custom calendar instance for testing.
-                     If None, uses the global calendar.
+                     If None, creates a default JPXCalendar.
         """
         self._calendar = calendar
 
@@ -51,7 +51,7 @@ class JPXIndex:
     def _cal(self) -> JPXCalendar:
         """Get the calendar instance."""
         if self._calendar is None:
-            self._calendar = get_calendar()
+            self._calendar = JPXCalendar()
         return self._calendar
 
     @property
