@@ -18,7 +18,17 @@ uv add marketsched
 ## 使用例
 
 ```python
-import marketsched
+from marketsched import get_market
+from datetime import date
 
-# TODO: 実装後に例を追加
+# 市場を取得
+market = get_market("jpx-index")
+
+# 営業日判定
+market.is_business_day(date(2026, 2, 6))  # True
+
+# SQ日取得
+market.get_sq_date(2026, 3)  # date(2026, 3, 13)
 ```
+
+> 詳細な使用例は実装完了後に更新予定です。

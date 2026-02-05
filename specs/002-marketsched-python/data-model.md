@@ -294,7 +294,7 @@ MarketshedError (base)
 ```
 JPX公式サイト
      │
-     │ httpx + BeautifulSoup/openpyxl
+     │ httpx + openpyxl
      ▼
 ┌─────────────┐
 │  Fetcher    │──────► DataFetchError (ネットワークエラー)
