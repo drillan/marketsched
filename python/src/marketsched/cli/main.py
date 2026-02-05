@@ -4,6 +4,7 @@ Provides the main Typer app with global options (--market, --format)
 and subcommand registration.
 """
 
+from datetime import date
 from enum import Enum
 from typing import Annotated, Any
 
@@ -81,6 +82,26 @@ def get_format_from_ctx(ctx: typer.Context) -> OutputFormat:
     """Get output format from context."""
     fmt: OutputFormat = ctx.obj.get("format", OutputFormat.JSON)
     return fmt
+
+
+def parse_date(date_str: str) -> date:
+    """Parse date string in YYYY-MM-DD format.
+
+    Args:
+        date_str: Date string in YYYY-MM-DD format.
+
+    Returns:
+        Parsed date object.
+
+    Raises:
+        typer.BadParameter: If the date format is invalid.
+    """
+    try:
+        return date.fromisoformat(date_str)
+    except ValueError as e:
+        raise typer.BadParameter(
+            f"Invalid date format: {date_str}. Use YYYY-MM-DD."
+        ) from e
 
 
 def format_output(data: dict[str, Any], fmt: OutputFormat) -> str:

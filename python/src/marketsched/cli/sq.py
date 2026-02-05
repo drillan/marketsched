@@ -7,7 +7,6 @@ Commands:
 """
 
 import re
-from datetime import date
 from typing import Annotated
 
 import typer
@@ -16,6 +15,7 @@ from marketsched.cli.main import (
     format_output,
     get_format_from_ctx,
     get_market_from_ctx,
+    parse_date,
 )
 
 sq_app = typer.Typer(no_args_is_help=True)
@@ -59,16 +59,6 @@ def parse_year_month(args: list[str]) -> tuple[int, int]:
         raise typer.BadParameter(f"Invalid month: {month}. Must be 1-12.")
 
     return year, month
-
-
-def parse_date(date_str: str) -> date:
-    """Parse date string in YYYY-MM-DD format."""
-    try:
-        return date.fromisoformat(date_str)
-    except ValueError as e:
-        raise typer.BadParameter(
-            f"Invalid date format: {date_str}. Use YYYY-MM-DD."
-        ) from e
 
 
 @sq_app.command("get")

@@ -55,3 +55,15 @@ class TestMainDefaultMarket:
         # that work without --market option
         result = runner.invoke(app, ["bd", "is", "2026-02-06"])
         assert result.exit_code == 0
+
+
+class TestInvalidMarket:
+    """Tests for invalid market ID handling."""
+
+    def test_invalid_market_error(self) -> None:
+        """存在しないマーケットIDでエラーになることを確認."""
+        result = runner.invoke(app, ["-m", "invalid-market", "bd", "is", "2026-02-06"])
+        assert result.exit_code != 0
+        # Check exception was raised
+        assert result.exception is not None
+        assert "invalid-market" in str(result.exception)

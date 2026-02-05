@@ -63,16 +63,14 @@ def ss_get(
 
     try:
         session = market.get_session(dt)
-    except TimezoneRequiredError:
+    except TimezoneRequiredError as e:
         raise typer.BadParameter(
             "Timezone required. Add timezone offset (e.g., +09:00)."
-        ) from None
+        ) from e
 
     # Format datetime for output
     if dt is None:
-        from zoneinfo import ZoneInfo
-
-        dt = datetime.now(ZoneInfo("Asia/Tokyo"))
+        dt = datetime.now(market.timezone)
 
     result = {
         "datetime": dt.isoformat(),
@@ -99,16 +97,14 @@ def ss_is_trading(
 
     try:
         is_trading = market.is_trading_hours(dt)
-    except TimezoneRequiredError:
+    except TimezoneRequiredError as e:
         raise typer.BadParameter(
             "Timezone required. Add timezone offset (e.g., +09:00)."
-        ) from None
+        ) from e
 
     # Format datetime for output
     if dt is None:
-        from zoneinfo import ZoneInfo
-
-        dt = datetime.now(ZoneInfo("Asia/Tokyo"))
+        dt = datetime.now(market.timezone)
 
     result = {
         "datetime": dt.isoformat(),
