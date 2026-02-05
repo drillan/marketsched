@@ -4,10 +4,13 @@ This package provides tools for managing market calendars, SQ dates,
 and trading hours for Japanese financial markets.
 
 Example:
-    >>> import marketsched
-    >>> market = marketsched.get_market("jpx-index")
-    >>> market.is_business_day(date(2026, 2, 6))
-    True
+    Once market implementations are registered, you can use them like this::
+
+        >>> from datetime import date
+        >>> import marketsched
+        >>> market = marketsched.get_market("jpx-index")  # requires jpx-index impl
+        >>> market.is_business_day(date(2026, 2, 6))
+        True
 """
 
 from marketsched.exceptions import (
@@ -15,8 +18,10 @@ from marketsched.exceptions import (
     ContractMonthParseError,
     DataFetchError,
     InvalidDataFormatError,
+    MarketAlreadyRegisteredError,
     MarketNotFoundError,
-    MarketshedError,
+    MarketschedError,
+    MarketshedError,  # Backwards compatibility alias
     SQDataNotFoundError,
     SQNotSupportedError,
     TimezoneRequiredError,
@@ -35,8 +40,10 @@ __all__ = [
     "get_market",
     "get_available_markets",
     # Exceptions
-    "MarketshedError",
+    "MarketschedError",
+    "MarketshedError",  # Backwards compatibility alias
     "MarketNotFoundError",
+    "MarketAlreadyRegisteredError",
     "ContractMonthParseError",
     "SQDataNotFoundError",
     "SQNotSupportedError",

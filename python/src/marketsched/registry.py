@@ -7,7 +7,7 @@ Markets are registered using the @MarketRegistry.register() decorator.
 from collections.abc import Callable
 from typing import TypeVar
 
-from marketsched.exceptions import MarketNotFoundError
+from marketsched.exceptions import MarketAlreadyRegisteredError, MarketNotFoundError
 from marketsched.market import Market
 
 # Type variable for market factory functions
@@ -40,6 +40,10 @@ class MarketRegistry:
         Returns:
             Decorator that registers the market class.
 
+        Raises:
+            MarketAlreadyRegisteredError: If a market with the given ID is
+                already registered.
+
         Example:
             @MarketRegistry.register("jpx-index")
             class JPXIndex:
@@ -47,6 +51,10 @@ class MarketRegistry:
         """
 
         def decorator(market_class: type[M]) -> type[M]:
+            if market_id in cls._markets:
+                raise MarketAlreadyRegisteredError(
+                    market_id, cls._markets[market_id].__name__
+                )
             cls._markets[market_id] = market_class
             return market_class
 

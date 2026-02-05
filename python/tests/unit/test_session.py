@@ -1,7 +1,5 @@
 """Unit tests for TradingSession enum."""
 
-import pytest
-
 
 class TestTradingSession:
     """Test cases for TradingSession enum."""

@@ -1,11 +1,11 @@
 """Custom exceptions for marketsched package.
 
-All custom exceptions inherit from MarketshedError, making it easy to catch
+All custom exceptions inherit from MarketschedError, making it easy to catch
 all marketsched-related errors with a single except clause.
 """
 
 
-class MarketshedError(Exception):
+class MarketschedError(Exception):
     """Base exception for all marketsched errors.
 
     All custom exceptions in this package inherit from this class,
@@ -13,18 +13,22 @@ class MarketshedError(Exception):
 
         try:
             ...
-        except MarketshedError as e:
+        except MarketschedError as e:
             handle_error(e)
     """
 
     pass
 
 
-class MarketNotFoundError(MarketshedError):
+# Keep alias for backwards compatibility during migration
+MarketshedError = MarketschedError
+
+
+class MarketNotFoundError(MarketschedError):
     """Raised when a requested market is not found in the registry.
 
     Attributes:
-        market_id: The market ID that was not found.
+        market_id (str): The market ID that was not found.
     """
 
     def __init__(self, market_id: str) -> None:
@@ -35,11 +39,28 @@ class MarketNotFoundError(MarketshedError):
         super().__init__(f"Market '{market_id}' not found. {available_hint}")
 
 
-class ContractMonthParseError(MarketshedError):
+class MarketAlreadyRegisteredError(MarketschedError):
+    """Raised when attempting to register a market with an ID that already exists.
+
+    Attributes:
+        market_id (str): The market ID that is already registered.
+        existing_class (str): The name of the existing registered class.
+    """
+
+    def __init__(self, market_id: str, existing_class: str) -> None:
+        self.market_id = market_id
+        self.existing_class = existing_class
+        super().__init__(
+            f"Market '{market_id}' is already registered by '{existing_class}'. "
+            f"Use a different market_id or call MarketRegistry.clear() first."
+        )
+
+
+class ContractMonthParseError(MarketschedError):
     """Raised when contract month parsing fails.
 
     Attributes:
-        input_text: The input text that could not be parsed.
+        input_text (str): The input text that could not be parsed.
     """
 
     def __init__(self, input_text: str) -> None:
@@ -50,12 +71,12 @@ class ContractMonthParseError(MarketshedError):
         )
 
 
-class SQDataNotFoundError(MarketshedError):
+class SQDataNotFoundError(MarketschedError):
     """Raised when SQ date data is not available for the specified year/month.
 
     Attributes:
-        year: The requested year.
-        month: The requested month.
+        year (int): The requested year.
+        month (int): The requested month.
     """
 
     def __init__(self, year: int, month: int) -> None:
@@ -67,13 +88,13 @@ class SQDataNotFoundError(MarketshedError):
         )
 
 
-class SQNotSupportedError(MarketshedError):
+class SQNotSupportedError(MarketschedError):
     """Raised when SQ operations are attempted on a market that doesn't support SQ.
 
     Some markets (e.g., stock exchanges) don't have SQ dates.
 
     Attributes:
-        market_id: The market ID that doesn't support SQ.
+        market_id (str): The market ID that doesn't support SQ.
     """
 
     def __init__(self, market_id: str) -> None:
@@ -83,7 +104,7 @@ class SQNotSupportedError(MarketshedError):
         )
 
 
-class TimezoneRequiredError(MarketshedError):
+class TimezoneRequiredError(MarketschedError):
     """Raised when a timezone-naive datetime is provided where timezone is required.
 
     All datetime values passed to marketsched must be timezone-aware.
@@ -97,7 +118,7 @@ class TimezoneRequiredError(MarketshedError):
         )
 
 
-class CacheNotAvailableError(MarketshedError):
+class CacheNotAvailableError(MarketschedError):
     """Raised when cache is not available and online fetch is not possible.
 
     This typically occurs when:
@@ -112,12 +133,12 @@ class CacheNotAvailableError(MarketshedError):
         )
 
 
-class DataFetchError(MarketshedError):
+class DataFetchError(MarketschedError):
     """Raised when fetching data from external sources fails.
 
     Attributes:
-        url: The URL that failed to fetch.
-        reason: The reason for the failure.
+        url (str): The URL that failed to fetch.
+        reason (str): The reason for the failure.
     """
 
     def __init__(self, url: str, reason: str) -> None:
@@ -126,13 +147,13 @@ class DataFetchError(MarketshedError):
         super().__init__(f"Failed to fetch data from '{url}': {reason}")
 
 
-class InvalidDataFormatError(MarketshedError):
+class InvalidDataFormatError(MarketschedError):
     """Raised when fetched data has an unexpected format.
 
     This may indicate that the data source has changed its format.
 
     Attributes:
-        details: Details about what was unexpected.
+        details (str): Details about what was unexpected.
     """
 
     def __init__(self, details: str) -> None:

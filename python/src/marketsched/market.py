@@ -129,9 +129,16 @@ class Market(Protocol):
 
         Returns:
             True if the date is an SQ date, False otherwise.
+            Returns False for dates outside the available SQ data range.
 
         Raises:
             SQNotSupportedError: If the market doesn't support SQ dates.
+
+        Note:
+            For dates outside the available data range (typically far future
+            or distant past), this method returns False rather than raising
+            SQDataNotFoundError, since a non-SQ date is a valid answer.
+            Use get_sq_date() if you need to verify data availability.
         """
         ...
 
