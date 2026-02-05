@@ -147,13 +147,13 @@ python/
 ### Tests for User Story 4
 
 - [ ] T038 [P] [US4] Unit test for is_business_day with weekends in python/tests/integration/test_jpx_index.py
-- [ ] T039 [P] [US4] Unit test for is_business_day with year-end holidays in python/tests/integration/test_jpx_index.py
+- [ ] T039 [P] [US4] Unit test for is_business_day with JPX official holidays in python/tests/integration/test_jpx_index.py
 - [ ] T040 [P] [US4] Unit test for is_business_day with holiday trading days in python/tests/integration/test_jpx_index.py
 - [ ] T041 [P] [US4] Unit test for next_business_day and previous_business_day in python/tests/integration/test_jpx_index.py
 
 ### Implementation for User Story 4
 
-- [ ] T042 [US4] Implement JPX calendar logic (weekend, year-end) in python/src/marketsched/jpx/calendar.py
+- [ ] T042 [US4] Implement JPX calendar logic (weekend + official holiday data) in python/src/marketsched/jpx/calendar.py
 - [ ] T043 [US4] Implement holiday trading check using cache data in python/src/marketsched/jpx/calendar.py
 - [ ] T044 [US4] Implement JPXIndex.is_business_day() in python/src/marketsched/jpx/index.py
 - [ ] T045 [US4] Implement JPXIndex.next_business_day() in python/src/marketsched/jpx/index.py

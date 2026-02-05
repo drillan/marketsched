@@ -109,8 +109,8 @@ class ContractMonth(BaseModel):
 
 **Business Day Rules**:
 - 土日は休場
-- 祝日は休場（祝日取引実施日を除く）
-- 12月31日〜1月3日は休場
+- JPX公式休業日データに含まれる日は休場（祝日取引実施日を除く）
+- 年末年始等の具体的日付はハードコードせず、公式データに従う
 
 **Trading Sessions (JST)**:
 | Session | Start | End |
