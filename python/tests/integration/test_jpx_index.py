@@ -7,6 +7,7 @@ Tests use a mock cache to provide predictable test data.
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -470,6 +471,44 @@ class TestIsTradingHours:
         dt = datetime(2026, 2, 6, 10, 0)  # No timezone
         with pytest.raises(TimezoneRequiredError):
             market.is_trading_hours(dt)
+
+
+class TestCurrentTimeSession:
+    """Test get_session() and is_trading_hours() with current time (US7)."""
+
+    def test_get_session_without_argument(self, market: JPXIndex) -> None:
+        """get_session() without argument should use current system time."""
+        # Mock datetime.now to return a known time during DAY session
+        mock_now = datetime(2026, 2, 6, 10, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
+        with patch("marketsched.jpx.index.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            session = market.get_session()
+            assert session == TradingSession.DAY
+            mock_datetime.now.assert_called_once_with(market.timezone)
+
+    def test_get_session_without_argument_night(self, market: JPXIndex) -> None:
+        """get_session() without argument during night session."""
+        mock_now = datetime(2026, 2, 6, 20, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
+        with patch("marketsched.jpx.index.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            session = market.get_session()
+            assert session == TradingSession.NIGHT
+
+    def test_is_trading_hours_without_argument(self, market: JPXIndex) -> None:
+        """is_trading_hours() without argument should use current system time."""
+        # During DAY session
+        mock_now = datetime(2026, 2, 6, 10, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
+        with patch("marketsched.jpx.index.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            assert market.is_trading_hours() is True
+
+    def test_is_trading_hours_without_argument_closed(self, market: JPXIndex) -> None:
+        """is_trading_hours() without argument during closed period."""
+        # During gap period
+        mock_now = datetime(2026, 2, 6, 16, 30, tzinfo=ZoneInfo("Asia/Tokyo"))
+        with patch("marketsched.jpx.index.datetime") as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            assert market.is_trading_hours() is False
 
 
 class TestSessionBoundaries:
