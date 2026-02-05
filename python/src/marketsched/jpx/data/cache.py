@@ -7,6 +7,7 @@ Cache location: ~/.cache/marketsched/
 """
 
 import json
+import warnings
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -91,6 +92,9 @@ class JPXDataCache:
 
         Returns:
             True if cache is available and not expired.
+
+        Raises:
+            InvalidDataFormatError: If cache metadata is corrupted.
         """
         if not self.metadata_path.exists():
             return False
@@ -99,8 +103,10 @@ class JPXDataCache:
             metadata = self.read_metadata()
             now = datetime.now(ZoneInfo("Asia/Tokyo"))
             return now < metadata.cache_valid_until
-        except (InvalidDataFormatError, FileNotFoundError):
+        except FileNotFoundError:
             return False
+        # InvalidDataFormatError is intentionally NOT caught here.
+        # Corrupted cache should be reported to the user, not silently ignored.
 
     def read_metadata(self) -> CacheMetadata:
         """Read cache metadata.
@@ -337,6 +343,8 @@ def get_cache(cache_dir: Path | None = None) -> JPXDataCache:
 
     Args:
         cache_dir: Custom cache directory (only used on first call).
+            If the cache is already initialized and cache_dir is provided,
+            a warning will be issued and the argument will be ignored.
 
     Returns:
         JPXDataCache instance.
@@ -344,4 +352,10 @@ def get_cache(cache_dir: Path | None = None) -> JPXDataCache:
     global _cache
     if _cache is None:
         _cache = JPXDataCache(cache_dir)
+    elif cache_dir is not None:
+        warnings.warn(
+            f"キャッシュは既に初期化されています。cache_dir={cache_dir} は無視されます。",
+            UserWarning,
+            stacklevel=2,
+        )
     return _cache

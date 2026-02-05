@@ -154,7 +154,8 @@ class JPXIndex:
         """Get the SQ date for the given year and month.
 
         SQ (Special Quotation) is the final settlement price for index
-        derivatives, determined on the second Friday of each month.
+        derivatives. SQ dates are loaded from JPX official data and are
+        NOT calculated (as per Constitution: "SQ日計算禁止").
 
         Args:
             year: The year.
@@ -177,9 +178,9 @@ class JPXIndex:
 
         Returns:
             True if the date is an SQ date, False otherwise.
-            Returns False for dates outside the available SQ data range.
 
         Raises:
+            SQDataNotFoundError: If SQ data is not available for the period.
             CacheNotAvailableError: If cache is not available.
         """
         return self._cal.is_sq_date(d)

@@ -8,10 +8,15 @@ All holiday data is loaded from the cache (Parquet files), following
 the Constitution rule that holiday dates must not be hardcoded.
 """
 
+import warnings
 from datetime import date, timedelta
 
 from marketsched.exceptions import SQDataNotFoundError
 from marketsched.jpx.data.cache import JPXDataCache, get_cache
+
+# Maximum days to search for next/previous business day
+# Prevents infinite loops in case of corrupted cache data
+MAX_SEARCH_DAYS = 365
 
 
 class JPXCalendar:
@@ -90,11 +95,14 @@ class JPXCalendar:
 
         Raises:
             CacheNotAvailableError: If cache is not available.
+            RuntimeError: If no business day found within MAX_SEARCH_DAYS.
         """
         current = d + timedelta(days=1)
-        while not self.is_business_day(current):
+        for _ in range(MAX_SEARCH_DAYS):
+            if self.is_business_day(current):
+                return current
             current += timedelta(days=1)
-        return current
+        raise RuntimeError(f"{d} から {MAX_SEARCH_DAYS} 日以内に営業日が見つかりません")
 
     def previous_business_day(self, d: date) -> date:
         """Get the previous business day before the given date.
@@ -107,11 +115,14 @@ class JPXCalendar:
 
         Raises:
             CacheNotAvailableError: If cache is not available.
+            RuntimeError: If no business day found within MAX_SEARCH_DAYS.
         """
         current = d - timedelta(days=1)
-        while not self.is_business_day(current):
+        for _ in range(MAX_SEARCH_DAYS):
+            if self.is_business_day(current):
+                return current
             current -= timedelta(days=1)
-        return current
+        raise RuntimeError(f"{d} から {MAX_SEARCH_DAYS} 日以内に営業日が見つかりません")
 
     def get_business_days(self, start: date, end: date) -> list[date]:
         """Get all business days in the given range.
@@ -179,16 +190,13 @@ class JPXCalendar:
 
         Returns:
             True if the date is an SQ date.
-            Returns False for dates outside the available data range.
 
         Raises:
+            SQDataNotFoundError: If SQ data is not available for the period.
             CacheNotAvailableError: If cache is not available.
         """
-        try:
-            sq_date = self.get_sq_date(d.year, d.month)
-            return sq_date == d
-        except SQDataNotFoundError:
-            return False
+        sq_date = self.get_sq_date(d.year, d.month)
+        return sq_date == d
 
     def get_sq_dates_for_year(self, year: int) -> list[date]:
         """Get all SQ dates for the given year.
@@ -218,6 +226,8 @@ def get_calendar(cache: JPXDataCache | None = None) -> JPXCalendar:
 
     Args:
         cache: Custom cache instance (only used on first call).
+            If the calendar is already initialized and cache is provided,
+            a warning will be issued and the argument will be ignored.
 
     Returns:
         JPXCalendar instance.
@@ -225,4 +235,10 @@ def get_calendar(cache: JPXDataCache | None = None) -> JPXCalendar:
     global _calendar
     if _calendar is None:
         _calendar = JPXCalendar(cache)
+    elif cache is not None:
+        warnings.warn(
+            "カレンダーは既に初期化されています。cache 引数は無視されます。",
+            UserWarning,
+            stacklevel=2,
+        )
     return _calendar

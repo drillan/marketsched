@@ -307,10 +307,11 @@ class TestIsSQDate:
         # March 12, 2026 is not an SQ date
         assert market.is_sq_date(date(2026, 3, 12)) is False
 
-    def test_far_future_date_returns_false(self, market: JPXIndex) -> None:
-        """is_sq_date() should return False for dates outside data range."""
-        # Far future date - no data available, should return False
-        assert market.is_sq_date(date(2050, 3, 13)) is False
+    def test_far_future_date_raises_error(self, market: JPXIndex) -> None:
+        """is_sq_date() should raise SQDataNotFoundError for dates outside data range."""
+        # Far future date - no data available, should raise
+        with pytest.raises(SQDataNotFoundError):
+            market.is_sq_date(date(2050, 3, 13))
 
 
 class TestGetSQDatesForYear:
@@ -395,6 +396,57 @@ class TestGetSession:
         assert market.get_session(dt) == TradingSession.DAY
 
 
+class TestGetBusinessDays:
+    """Test get_business_days() method (US4)."""
+
+    def test_get_business_days_week(self, market: JPXIndex) -> None:
+        """get_business_days() should return weekdays in a week."""
+        # Feb 2-6, 2026 (Mon-Fri)
+        days = market.get_business_days(date(2026, 2, 2), date(2026, 2, 6))
+        assert len(days) == 5
+        assert days[0] == date(2026, 2, 2)
+        assert days[-1] == date(2026, 2, 6)
+
+    def test_get_business_days_empty_range(self, market: JPXIndex) -> None:
+        """get_business_days() should return empty list for invalid range."""
+        days = market.get_business_days(date(2026, 2, 6), date(2026, 2, 2))
+        assert days == []
+
+    def test_get_business_days_skips_holiday(self, market: JPXIndex) -> None:
+        """get_business_days() should skip non-trading holidays."""
+        # Feb 9-12, 2026 (Mon-Thu), Feb 11 is holiday
+        days = market.get_business_days(date(2026, 2, 9), date(2026, 2, 12))
+        assert len(days) == 3
+        assert date(2026, 2, 11) not in days
+
+    def test_get_business_days_includes_holiday_trading(self, market: JPXIndex) -> None:
+        """get_business_days() should include holiday trading days."""
+        # Jan 12, 2026 is a holiday trading day (成人の日)
+        days = market.get_business_days(date(2026, 1, 12), date(2026, 1, 12))
+        assert days == [date(2026, 1, 12)]
+
+
+class TestCountBusinessDays:
+    """Test count_business_days() method (US4)."""
+
+    def test_count_business_days_week(self, market: JPXIndex) -> None:
+        """count_business_days() should count weekdays in a week."""
+        # Feb 2-6, 2026 (Mon-Fri)
+        count = market.count_business_days(date(2026, 2, 2), date(2026, 2, 6))
+        assert count == 5
+
+    def test_count_business_days_empty_range(self, market: JPXIndex) -> None:
+        """count_business_days() should return 0 for invalid range."""
+        count = market.count_business_days(date(2026, 2, 6), date(2026, 2, 2))
+        assert count == 0
+
+    def test_count_business_days_skips_holiday(self, market: JPXIndex) -> None:
+        """count_business_days() should not count non-trading holidays."""
+        # Feb 9-12, 2026 (Mon-Thu), Feb 11 is holiday
+        count = market.count_business_days(date(2026, 2, 9), date(2026, 2, 12))
+        assert count == 3
+
+
 class TestIsTradingHours:
     """Test is_trading_hours() method (US7)."""
 
@@ -412,3 +464,48 @@ class TestIsTradingHours:
         """Should return False during gap periods."""
         dt = datetime(2026, 2, 6, 16, 30, tzinfo=ZoneInfo("Asia/Tokyo"))
         assert market.is_trading_hours(dt) is False
+
+    def test_timezone_required_error(self, market: JPXIndex) -> None:
+        """is_trading_hours() should raise TimezoneRequiredError for naive datetime."""
+        dt = datetime(2026, 2, 6, 10, 0)  # No timezone
+        with pytest.raises(TimezoneRequiredError):
+            market.is_trading_hours(dt)
+
+
+class TestSessionBoundaries:
+    """Test edge cases for session boundaries (US7)."""
+
+    def test_night_session_end_boundary_06_00(self, market: JPXIndex) -> None:
+        """06:00 exactly should be CLOSED (night session ends at 06:00)."""
+        dt = datetime(2026, 2, 7, 6, 0, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
+        assert market.get_session(dt) == TradingSession.CLOSED
+
+    def test_pre_market_gap_08_44(self, market: JPXIndex) -> None:
+        """08:44 should be CLOSED (day session starts at 08:45)."""
+        dt = datetime(2026, 2, 6, 8, 44, tzinfo=ZoneInfo("Asia/Tokyo"))
+        assert market.get_session(dt) == TradingSession.CLOSED
+
+    def test_day_session_end_15_45(self, market: JPXIndex) -> None:
+        """15:45 should be DAY session (inclusive end)."""
+        dt = datetime(2026, 2, 6, 15, 45, tzinfo=ZoneInfo("Asia/Tokyo"))
+        assert market.get_session(dt) == TradingSession.DAY
+
+    def test_inter_session_gap_15_46(self, market: JPXIndex) -> None:
+        """15:46 should be CLOSED."""
+        dt = datetime(2026, 2, 6, 15, 46, tzinfo=ZoneInfo("Asia/Tokyo"))
+        assert market.get_session(dt) == TradingSession.CLOSED
+
+    def test_inter_session_gap_16_59(self, market: JPXIndex) -> None:
+        """16:59 should be CLOSED."""
+        dt = datetime(2026, 2, 6, 16, 59, tzinfo=ZoneInfo("Asia/Tokyo"))
+        assert market.get_session(dt) == TradingSession.CLOSED
+
+    def test_night_session_start_17_00(self, market: JPXIndex) -> None:
+        """17:00 should be NIGHT session start."""
+        dt = datetime(2026, 2, 6, 17, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
+        assert market.get_session(dt) == TradingSession.NIGHT
+
+    def test_night_session_05_59(self, market: JPXIndex) -> None:
+        """05:59 should still be NIGHT session."""
+        dt = datetime(2026, 2, 7, 5, 59, tzinfo=ZoneInfo("Asia/Tokyo"))
+        assert market.get_session(dt) == TradingSession.NIGHT

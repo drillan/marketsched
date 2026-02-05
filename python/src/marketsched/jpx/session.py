@@ -29,10 +29,16 @@ class JPXIndexSessionTimes:
     """Trading session times for JPX Index derivatives.
 
     Based on JPX official trading hours for index futures and options.
+    https://www.jpx.co.jp/derivatives/rules/trading-hours/index.html
 
-    Trading Schedule (JST):
-        Day Session: 08:45 - 15:45
-        Night Session: 17:00 - 06:00 (next day)
+    Trading Schedule (JST, including closing auction):
+        Day Session: 08:45 - 15:45 (regular trading 08:45-15:40, closing auction 15:45)
+        Night Session: 17:00 - 06:00 (regular trading 17:00-05:55, closing auction 06:00)
+
+    Note:
+        The times include the closing auction period. The market is considered
+        open during the closing auction (15:40-15:45 for day session,
+        05:55-06:00 for night session).
 
     Gap periods (market closed):
         - 06:00 - 08:45 (pre-market gap)
