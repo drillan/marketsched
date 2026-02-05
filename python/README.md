@@ -66,8 +66,8 @@ cm.to_yyyymm()    # "202603"
 cm.to_japanese()  # "2026年3月限"
 
 # 限月は比較・ソート可能
-cm1 = ContractMonth(2026, 3)
-cm2 = ContractMonth(2026, 6)
+cm1 = ContractMonth(year=2026, month=3)
+cm2 = ContractMonth(year=2026, month=6)
 cm1 < cm2  # True
 sorted([cm2, cm1])  # [cm1, cm2]
 ```
@@ -77,7 +77,7 @@ sorted([cm2, cm1])  # [cm1, cm2]
 ```bash
 # 営業日判定
 mks bd is 2026-02-06                 # JSON形式で出力
-mks bd is 2026-02-06 -f text         # テキスト形式で出力
+mks -f text bd is 2026-02-06         # テキスト形式で出力
 mks bd next 2026-02-06               # 翌営業日
 mks bd prev 2026-02-06               # 前営業日
 mks bd list 2026-02-01 2026-02-28    # 期間内営業日リスト
