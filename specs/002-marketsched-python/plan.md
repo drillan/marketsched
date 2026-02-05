@@ -100,6 +100,21 @@ python/
 
 **Structure Decision**: Single project structure。Python パッケージとして `src/marketsched/` にソースを配置し、取引所ごとにサブモジュール（`jpx/`）を分離。
 
+### Test Placement Guidelines
+
+テストの配置基準:
+
+| ディレクトリ | 対象 | 特徴 |
+|-------------|------|------|
+| `tests/unit/` | 単一クラス・関数のテスト | 外部依存なし、モック不要、高速 |
+| `tests/integration/` | 複数コンポーネントの結合テスト | キャッシュ、レジストリ、実データ使用 |
+| `tests/cli/` | CLI コマンドのテスト | Typer CliRunner 使用 |
+
+**原則**:
+- 外部I/O（ネットワーク、ファイルシステム）を含むテストは `integration/`
+- バリデーションロジックのみのテストは `unit/`
+- CLI出力フォーマットのテストは `cli/`
+
 ## Complexity Tracking
 
 > **No violations found** - Constitution Check passed without requiring justifications.
