@@ -51,14 +51,14 @@ from marketsched import ContractMonth
 cm = ContractMonth.parse("26年3月限")
 
 # 直接生成
-cm = ContractMonth(2026, 3)
+cm = ContractMonth(year=2026, month=3)
 
 # 変換
 print(cm.to_yyyymm())    # "202603"
 print(cm.to_japanese())  # "2026年3月限"
 
 # 比較
-print(cm < ContractMonth(2026, 6))  # True
+print(cm < ContractMonth(year=2026, month=6))  # True
 ```
 
 ## CLI として使用
@@ -130,11 +130,11 @@ mks cache status
 # JSON（デフォルト）
 mks bd is 2026-02-06
 
-# テキスト
-mks bd is 2026-02-06 --format text
+# テキスト（--formatはサブコマンドの前に指定）
+mks --format text bd is 2026-02-06
 
 # テーブル
-mks bd list 2026-02-01 2026-02-28 --format table
+mks --format table bd list 2026-02-01 2026-02-28
 ```
 
 ## 対応市場
