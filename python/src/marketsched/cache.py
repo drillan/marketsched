@@ -14,13 +14,14 @@ Example:
     >>> marketsched.clear_cache()
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pyarrow as pa
 
 from marketsched.jpx.data import (
     CacheInfo,
     CacheMetadata,
+    DataType,
     HolidayTradingRecord,
     SQDateRecord,
 )
@@ -34,10 +35,13 @@ __all__ = [
 ]
 
 # Cache data types
-CACHE_TYPES = ["sq_dates", "holiday_trading"]
+CACHE_TYPES = list(DataType)
 
-# Default years to fetch for SQ dates
-DEFAULT_YEARS = [2026, 2027]
+
+def _get_default_years() -> list[int]:
+    """Get default years (current and next year in UTC)."""
+    current_year = datetime.now(UTC).year
+    return [current_year, current_year + 1]
 
 
 def _get_cache_manager() -> ParquetCacheManager:
@@ -54,7 +58,7 @@ def _sq_records_to_table(records: list[SQDateRecord]) -> pa.Table:
     """Convert SQ date records to PyArrow Table."""
     return pa.table(
         {
-            "contract_month": [r.contract_month for r in records],
+            "contract_month": [r.contract_month.to_yyyymm() for r in records],
             "last_trading_day": [r.last_trading_day for r in records],
             "sq_date": [r.sq_date for r in records],
             "product_category": [r.product_category for r in records],
@@ -85,7 +89,8 @@ def update_cache(
 
     Args:
         force: If True, update even if cache is still valid.
-        years: Years to fetch SQ date data for. Defaults to [2026, 2027].
+        years: Years to fetch SQ date data for.
+               Defaults to current and next year (UTC).
 
     Returns:
         Dictionary mapping cache type to CacheInfo.
@@ -100,54 +105,61 @@ def update_cache(
     """
     cache_manager = _get_cache_manager()
     fetcher = _get_fetcher()
-    years = years or DEFAULT_YEARS
 
-    now = datetime.now(timezone.utc)
+    if years is None:
+        years = _get_default_years()
+
+    now = datetime.now(UTC)
     expires_at = now + cache_manager.expiry
 
     # Update SQ dates if needed
-    if force or not cache_manager.is_valid("sq_dates"):
+    if force or not cache_manager.is_valid(DataType.SQ_DATES):
         sq_records = fetcher.fetch_sq_dates(years=years)
         sq_table = _sq_records_to_table(sq_records)
 
+        sq_source_urls = [
+            fetcher.BASE_URL + fetcher.SQ_DATES_PATH.format(year=year) for year in years
+        ]
+        source_url = ", ".join(sq_source_urls)
+
         sq_metadata = CacheMetadata(
-            data_type="sq_dates",
-            source_url=fetcher.BASE_URL + fetcher.SQ_DATES_PATH.format(year=years[0]),
+            data_type=DataType.SQ_DATES,
+            source_url=source_url,
             fetched_at=now,
             expires_at=expires_at,
             schema_version=1,
             record_count=len(sq_records),
         )
-        cache_manager.write("sq_dates", sq_table, sq_metadata)
+        cache_manager.write(DataType.SQ_DATES, sq_table, sq_metadata)
 
     # Update holiday trading if needed
-    if force or not cache_manager.is_valid("holiday_trading"):
+    if force or not cache_manager.is_valid(DataType.HOLIDAY_TRADING):
         holiday_records = fetcher.fetch_holiday_trading()
         holiday_table = _holiday_records_to_table(holiday_records)
 
         holiday_metadata = CacheMetadata(
-            data_type="holiday_trading",
+            data_type=DataType.HOLIDAY_TRADING,
             source_url=fetcher.HOLIDAY_TRADING_URL,
             fetched_at=now,
             expires_at=expires_at,
             schema_version=1,
             record_count=len(holiday_records),
         )
-        cache_manager.write("holiday_trading", holiday_table, holiday_metadata)
+        cache_manager.write(DataType.HOLIDAY_TRADING, holiday_table, holiday_metadata)
 
     return get_cache_status()
 
 
-def clear_cache(data_type: str | None = None) -> None:
+def clear_cache(data_type: DataType | str | None = None) -> None:
     """Clear the cache.
 
     Args:
-        data_type: Specific cache type to clear ("sq_dates" or "holiday_trading").
+        data_type: Specific cache type to clear (e.g., DataType.SQ_DATES).
                    If None, clears all caches.
 
     Example:
         >>> clear_cache()  # Clear all
-        >>> clear_cache("sq_dates")  # Clear only SQ dates
+        >>> clear_cache(DataType.SQ_DATES)  # Clear only SQ dates
     """
     cache_manager = _get_cache_manager()
     cache_manager.clear(data_type)
@@ -157,7 +169,7 @@ def get_cache_status() -> dict[str, CacheInfo]:
     """Get the status of all caches.
 
     Returns:
-        Dictionary mapping cache type ("sq_dates", "holiday_trading") to CacheInfo.
+        Dictionary mapping cache type name to CacheInfo.
 
     Example:
         >>> status = get_cache_status()
@@ -165,4 +177,4 @@ def get_cache_status() -> dict[str, CacheInfo]:
         ...     update_cache()
     """
     cache_manager = _get_cache_manager()
-    return {data_type: cache_manager.get_info(data_type) for data_type in CACHE_TYPES}
+    return {dt.value: cache_manager.get_info(dt) for dt in CACHE_TYPES}

@@ -4,67 +4,17 @@ ruff: noqa: ARG002
 """
 
 from datetime import datetime
-from io import BytesIO
 from pathlib import Path
 
 import httpx
 import pytest
-from openpyxl import Workbook
 from pytest_httpx import HTTPXMock
 
 from marketsched.cache import clear_cache, get_cache_status, update_cache
 from marketsched.exceptions import DataFetchError
 from marketsched.jpx.data import CacheInfo
 
-
-def create_sq_dates_excel(
-    records: list[tuple[str, datetime, datetime, datetime | str]],
-) -> bytes:
-    """Create a mock SQ dates Excel file."""
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "2026"
-    ws.append(
-        [
-            None,
-            "商品",
-            "限月取引",
-            "9桁コード",
-            "限月コード下2桁",
-            "取引最終日",
-            "権利行使日",
-        ]
-    )
-    for product, contract_month, last_trading_day, exercise_date in records:
-        ws.append(
-            [
-                None,
-                product,
-                contract_month,
-                123456789,
-                "-",
-                last_trading_day,
-                exercise_date,
-            ]
-        )
-    buffer = BytesIO()
-    wb.save(buffer)
-    buffer.seek(0)
-    return buffer.read()
-
-
-def create_holiday_trading_excel(records: list[tuple[datetime, str, str]]) -> bytes:
-    """Create a mock holiday trading Excel file."""
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "祝日取引日"
-    ws.append(["祝日取引の対象日", "名称", "実施有無"])
-    for holiday_date, name, status in records:
-        ws.append([holiday_date, name, status])
-    buffer = BytesIO()
-    wb.save(buffer)
-    buffer.seek(0)
-    return buffer.read()
+from .conftest import create_holiday_trading_excel, create_sq_dates_excel
 
 
 @pytest.fixture
@@ -214,7 +164,6 @@ class TestClearCache:
 
         update_cache(years=[2026])
 
-        # Clear only sq_dates
         clear_cache("sq_dates")
 
         status = get_cache_status()
@@ -252,7 +201,6 @@ class TestClearCache:
 
         update_cache(years=[2026])
 
-        # Clear all
         clear_cache()
 
         status = get_cache_status()

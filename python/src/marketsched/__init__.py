@@ -30,6 +30,7 @@ from marketsched.exceptions import (
     SQNotSupportedError,
     TimezoneRequiredError,
 )
+from marketsched.jpx.data import DataType
 from marketsched.market import Market
 from marketsched.registry import MarketRegistry
 from marketsched.session import TradingSession
@@ -40,6 +41,7 @@ __all__ = [
     # Core types
     "Market",
     "ContractMonth",
+    "DataType",
     "TradingSession",
     # Functions
     "get_market",

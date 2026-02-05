@@ -17,6 +17,7 @@ import httpx
 from openpyxl import load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
+from marketsched.contract_month import ContractMonth
 from marketsched.exceptions import DataFetchError, InvalidDataFormatError
 from marketsched.jpx.data import HolidayTradingRecord, SQDateRecord
 
@@ -101,6 +102,9 @@ class JPXDataFetcher:
         excel_data = self._download_excel(self.HOLIDAY_TRADING_URL)
         records = self._parse_holiday_trading_excel(excel_data)
 
+        if not records:
+            raise InvalidDataFormatError("No holiday trading records found in the data")
+
         return sorted(records, key=lambda r: r.date)
 
     def _download_excel(self, url: str) -> BytesIO:
@@ -135,55 +139,58 @@ class JPXDataFetcher:
         Raises:
             InvalidDataFormatError: If Excel format is unexpected.
         """
-        wb = load_workbook(data, read_only=True)
-        ws = wb.active
-        if ws is None:
-            raise InvalidDataFormatError("Excel file has no active worksheet")
-
-        # Find header row and validate columns
-        header_row_idx, column_map = self._find_sq_dates_header(ws)
-        if header_row_idx is None:
+        try:
+            wb = load_workbook(data, read_only=True)
+        except Exception as e:
             raise InvalidDataFormatError(
-                f"Required columns not found: {SQ_DATES_REQUIRED_COLUMNS}"
-            )
+                f"Failed to load Excel file as workbook: {e}"
+            ) from e
 
-        records: list[SQDateRecord] = []
+        try:
+            ws = wb.active
+            if ws is None:
+                raise InvalidDataFormatError("Excel file has no active worksheet")
 
-        for row in ws.iter_rows(min_row=header_row_idx + 1, values_only=True):
-            product = row[column_map["商品"]]
-            contract_month_raw = row[column_map["限月取引"]]
-            last_trading_day_raw = row[column_map["取引最終日"]]
-            exercise_date_raw = row[column_map["権利行使日"]]
-
-            # Skip non-option products (they don't have exercise dates)
-            if product != SQ_DATE_PRODUCT:
-                continue
-
-            # Skip rows without exercise date
-            if exercise_date_raw is None or exercise_date_raw == "-":
-                continue
-
-            # Parse dates
-            contract_month = self._parse_contract_month(contract_month_raw)
-            if contract_month is None:
-                continue
-
-            last_trading_day = self._parse_date(last_trading_day_raw)
-            sq_date = self._parse_date(exercise_date_raw)
-
-            if last_trading_day is None or sq_date is None:
-                continue
-
-            records.append(
-                SQDateRecord(
-                    contract_month=contract_month,
-                    last_trading_day=last_trading_day,
-                    sq_date=sq_date,
-                    product_category="index_futures_options",
+            # Find header row and validate columns
+            header_row_idx, column_map = self._find_sq_dates_header(ws)
+            if header_row_idx is None:
+                raise InvalidDataFormatError(
+                    f"Required columns not found: {SQ_DATES_REQUIRED_COLUMNS}"
                 )
-            )
 
-        return records
+            records: list[SQDateRecord] = []
+
+            for row in ws.iter_rows(min_row=header_row_idx + 1, values_only=True):
+                product = row[column_map["商品"]]
+                contract_month_raw = row[column_map["限月取引"]]
+                last_trading_day_raw = row[column_map["取引最終日"]]
+                exercise_date_raw = row[column_map["権利行使日"]]
+
+                # Skip non-option products (they don't have exercise dates)
+                if product != SQ_DATE_PRODUCT:
+                    continue
+
+                # Skip rows without exercise date
+                if exercise_date_raw is None or exercise_date_raw == "-":
+                    continue
+
+                # Parse dates (raises InvalidDataFormatError on failure)
+                contract_month = self._parse_contract_month(contract_month_raw)
+                last_trading_day = self._parse_date(last_trading_day_raw)
+                sq_date = self._parse_date(exercise_date_raw)
+
+                records.append(
+                    SQDateRecord(
+                        contract_month=contract_month,
+                        last_trading_day=last_trading_day,
+                        sq_date=sq_date,
+                        product_category="index_futures_options",
+                    )
+                )
+
+            return records
+        finally:
+            wb.close()
 
     def _find_sq_dates_header(self, ws: Worksheet) -> tuple[int | None, dict[str, int]]:
         """Find the header row and map column indices.
@@ -220,44 +227,53 @@ class JPXDataFetcher:
         Raises:
             InvalidDataFormatError: If Excel format is unexpected.
         """
-        wb = load_workbook(data, read_only=True)
-        ws = wb.active
-        if ws is None:
-            raise InvalidDataFormatError("Excel file has no active worksheet")
-
-        # Find header row and validate columns
-        header_row_idx, column_map = self._find_holiday_header(ws)
-        if header_row_idx is None:
+        try:
+            wb = load_workbook(data, read_only=True)
+        except Exception as e:
             raise InvalidDataFormatError(
-                f"Required columns not found: {HOLIDAY_TRADING_REQUIRED_COLUMNS}"
-            )
+                f"Failed to load Excel file as workbook: {e}"
+            ) from e
 
-        records: list[HolidayTradingRecord] = []
+        try:
+            ws = wb.active
+            if ws is None:
+                raise InvalidDataFormatError("Excel file has no active worksheet")
 
-        for row in ws.iter_rows(min_row=header_row_idx + 1, values_only=True):
-            holiday_date_raw = row[column_map["祝日取引の対象日"]]
-            holiday_name = row[column_map["名称"]]
-            status = row[column_map["実施有無"]]
-
-            if holiday_date_raw is None or holiday_name is None:
-                continue
-
-            holiday_date = self._parse_date(holiday_date_raw)
-            if holiday_date is None:
-                continue
-
-            is_trading = status == "実施する"
-
-            records.append(
-                HolidayTradingRecord(
-                    date=holiday_date,
-                    holiday_name=str(holiday_name),
-                    is_trading=is_trading,
-                    is_confirmed=True,  # Data from official source is confirmed
+            # Find header row and validate columns
+            header_row_idx, column_map = self._find_holiday_header(ws)
+            if header_row_idx is None:
+                raise InvalidDataFormatError(
+                    f"Required columns not found: {HOLIDAY_TRADING_REQUIRED_COLUMNS}"
                 )
-            )
 
-        return records
+            records: list[HolidayTradingRecord] = []
+
+            for row in ws.iter_rows(min_row=header_row_idx + 1, values_only=True):
+                holiday_date_raw = row[column_map["祝日取引の対象日"]]
+                holiday_name = row[column_map["名称"]]
+                status = row[column_map["実施有無"]]
+
+                # Skip empty/incomplete rows (e.g., trailing blank rows)
+                if holiday_date_raw is None or holiday_name is None:
+                    continue
+
+                # Parse date (raises InvalidDataFormatError on failure)
+                holiday_date = self._parse_date(holiday_date_raw)
+
+                is_trading = status == "実施する"
+
+                records.append(
+                    HolidayTradingRecord(
+                        date=holiday_date,
+                        holiday_name=str(holiday_name),
+                        is_trading=is_trading,
+                        is_confirmed=True,  # Data from official source is confirmed
+                    )
+                )
+
+            return records
+        finally:
+            wb.close()
 
     def _find_holiday_header(self, ws: Worksheet) -> tuple[int | None, dict[str, int]]:
         """Find the holiday trading header row and map column indices.
@@ -282,42 +298,59 @@ class JPXDataFetcher:
 
         return None, {}
 
-    def _parse_contract_month(self, value: datetime | date | str | None) -> str | None:
-        """Parse contract month to YYYYMM format.
+    def _parse_contract_month(
+        self, value: datetime | date | str | None
+    ) -> ContractMonth:
+        """Parse contract month from Excel cell value.
 
         Args:
             value: Raw value from Excel (datetime, date, or string).
 
         Returns:
-            Contract month in YYYYMM format, or None if parsing fails.
+            ContractMonth value object.
+
+        Raises:
+            InvalidDataFormatError: If value cannot be parsed.
         """
         if value is None:
-            return None
+            raise InvalidDataFormatError("Contract month value is None")
 
         if isinstance(value, datetime):
-            return f"{value.year}{value.month:02d}"
+            return ContractMonth(year=value.year, month=value.month)
         if isinstance(value, date):
-            return f"{value.year}{value.month:02d}"
+            return ContractMonth(year=value.year, month=value.month)
 
-        return None
+        raise InvalidDataFormatError(
+            f"Unexpected contract month type: {type(value).__name__} (value: {value})"
+        )
 
-    def _parse_date(self, value: datetime | date | str | None) -> date | None:
+    def _parse_date(self, value: datetime | date | str | None) -> date:
         """Parse date from Excel cell value.
 
         Args:
             value: Raw value from Excel (datetime, date, or string).
 
         Returns:
-            date object, or None if parsing fails.
+            date object.
+
+        Raises:
+            InvalidDataFormatError: If value cannot be parsed.
         """
         if value is None:
-            return None
+            raise InvalidDataFormatError("Date value is None")
 
         if isinstance(value, datetime):
             return value.date()
         if isinstance(value, date):
             return value
-        if isinstance(value, str) and value == "-":
-            return None
 
-        return None
+        if isinstance(value, str):
+            if value == "-":
+                raise InvalidDataFormatError(
+                    "Date value is '-' (should have been filtered earlier)"
+                )
+            raise InvalidDataFormatError(f"Cannot parse date from string: {value}")
+
+        raise InvalidDataFormatError(
+            f"Unexpected date type: {type(value).__name__} (value: {value})"
+        )

@@ -3,14 +3,15 @@
 ruff: noqa: ARG002
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 
-from marketsched.jpx.data import CacheMetadata
+from marketsched.jpx.data import CacheMetadata, DataType
 from marketsched.jpx.data.cache import ParquetCacheManager
 
 
@@ -58,7 +59,7 @@ class TestParquetCacheManager:
         """Create sample cache metadata."""
         now = datetime.now(utc)
         return CacheMetadata(
-            data_type="sq_dates",
+            data_type=DataType.SQ_DATES,
             source_url="https://example.com/data.xlsx",
             fetched_at=now,
             expires_at=now + timedelta(hours=24),
@@ -73,16 +74,13 @@ class TestParquetCacheManager:
         sample_metadata: CacheMetadata,
     ) -> None:
         """Data written to cache can be read back correctly."""
-        # Write
-        cache_manager.write("sq_dates", sample_table, sample_metadata)
+        cache_manager.write(DataType.SQ_DATES, sample_table, sample_metadata)
 
-        # Read
-        result = cache_manager.read("sq_dates")
+        result = cache_manager.read(DataType.SQ_DATES)
 
         assert result is not None
         assert result.num_rows == 3
         assert result.column_names == sample_table.column_names
-        # Compare data
         assert result.to_pydict() == sample_table.to_pydict()
 
     def test_read_nonexistent_returns_none(
@@ -101,16 +99,16 @@ class TestParquetCacheManager:
         """is_valid returns True when cache is within expiry period."""
         now = datetime.now(utc)
         metadata = CacheMetadata(
-            data_type="sq_dates",
+            data_type=DataType.SQ_DATES,
             source_url="https://example.com/data.xlsx",
             fetched_at=now,
             expires_at=now + timedelta(hours=24),
             schema_version=1,
             record_count=3,
         )
-        cache_manager.write("sq_dates", sample_table, metadata)
+        cache_manager.write(DataType.SQ_DATES, sample_table, metadata)
 
-        assert cache_manager.is_valid("sq_dates") is True
+        assert cache_manager.is_valid(DataType.SQ_DATES) is True
 
     def test_is_valid_returns_false_after_expiry(
         self,
@@ -122,16 +120,16 @@ class TestParquetCacheManager:
         past = datetime.now(utc) - timedelta(hours=48)
         expired = past + timedelta(hours=24)  # Still in the past
         metadata = CacheMetadata(
-            data_type="sq_dates",
+            data_type=DataType.SQ_DATES,
             source_url="https://example.com/data.xlsx",
             fetched_at=past,
             expires_at=expired,
             schema_version=1,
             record_count=3,
         )
-        cache_manager.write("sq_dates", sample_table, metadata)
+        cache_manager.write(DataType.SQ_DATES, sample_table, metadata)
 
-        assert cache_manager.is_valid("sq_dates") is False
+        assert cache_manager.is_valid(DataType.SQ_DATES) is False
 
     def test_is_valid_returns_false_for_nonexistent(
         self, cache_manager: ParquetCacheManager
@@ -146,11 +144,10 @@ class TestParquetCacheManager:
         sample_metadata: CacheMetadata,
     ) -> None:
         """clear(data_type) removes only the specified cache."""
-        # Write two caches
-        cache_manager.write("sq_dates", sample_table, sample_metadata)
+        cache_manager.write(DataType.SQ_DATES, sample_table, sample_metadata)
 
         holiday_metadata = CacheMetadata(
-            data_type="holiday_trading",
+            data_type=DataType.HOLIDAY_TRADING,
             source_url="https://example.com/holiday.xlsx",
             fetched_at=sample_metadata.fetched_at,
             expires_at=sample_metadata.expires_at,
@@ -165,15 +162,12 @@ class TestParquetCacheManager:
                 "is_confirmed": [True],
             }
         )
-        cache_manager.write("holiday_trading", holiday_table, holiday_metadata)
+        cache_manager.write(DataType.HOLIDAY_TRADING, holiday_table, holiday_metadata)
 
-        # Clear only sq_dates
-        cache_manager.clear("sq_dates")
+        cache_manager.clear(DataType.SQ_DATES)
 
-        # sq_dates should be gone
-        assert cache_manager.read("sq_dates") is None
-        # holiday_trading should remain
-        assert cache_manager.read("holiday_trading") is not None
+        assert cache_manager.read(DataType.SQ_DATES) is None
+        assert cache_manager.read(DataType.HOLIDAY_TRADING) is not None
 
     def test_clear_all_removes_all_caches(
         self,
@@ -182,13 +176,11 @@ class TestParquetCacheManager:
         sample_metadata: CacheMetadata,
     ) -> None:
         """clear() without argument removes all caches."""
-        # Write cache
-        cache_manager.write("sq_dates", sample_table, sample_metadata)
+        cache_manager.write(DataType.SQ_DATES, sample_table, sample_metadata)
 
-        # Clear all
         cache_manager.clear()
 
-        assert cache_manager.read("sq_dates") is None
+        assert cache_manager.read(DataType.SQ_DATES) is None
 
     def test_get_info_returns_cache_info(
         self,
@@ -197,11 +189,11 @@ class TestParquetCacheManager:
         sample_metadata: CacheMetadata,
     ) -> None:
         """get_info returns CacheInfo with correct data."""
-        cache_manager.write("sq_dates", sample_table, sample_metadata)
+        cache_manager.write(DataType.SQ_DATES, sample_table, sample_metadata)
 
-        info = cache_manager.get_info("sq_dates")
+        info = cache_manager.get_info(DataType.SQ_DATES)
 
-        assert info.data_type == "sq_dates"
+        assert info.data_type == DataType.SQ_DATES
         assert info.is_valid is True
         assert info.fetched_at == sample_metadata.fetched_at
         assert info.expires_at == sample_metadata.expires_at
@@ -211,9 +203,9 @@ class TestParquetCacheManager:
         self, cache_manager: ParquetCacheManager, temp_cache_dir: Path
     ) -> None:
         """get_info for non-existent cache returns info with is_valid=False."""
-        info = cache_manager.get_info("nonexistent")
+        info = cache_manager.get_info(DataType.SQ_DATES)
 
-        assert info.data_type == "nonexistent"
+        assert info.data_type == DataType.SQ_DATES
         assert info.is_valid is False
         assert info.fetched_at is None
         assert info.expires_at is None
@@ -227,14 +219,12 @@ class TestParquetCacheManager:
         temp_cache_dir: Path,
     ) -> None:
         """Metadata is stored within the Parquet file's custom metadata."""
-        cache_manager.write("sq_dates", sample_table, sample_metadata)
+        cache_manager.write(DataType.SQ_DATES, sample_table, sample_metadata)
 
-        # Read file directly to verify metadata storage
         parquet_path = temp_cache_dir / "sq_dates.parquet"
         table = pa.parquet.read_table(parquet_path)
 
         assert b"marketsched_metadata" in table.schema.metadata
-        # Verify it's valid JSON that can be parsed back
         metadata_json = table.schema.metadata[b"marketsched_metadata"]
         restored = CacheMetadata.model_validate_json(metadata_json)
         assert restored.data_type == sample_metadata.data_type
@@ -260,15 +250,54 @@ class TestParquetCacheManager:
         manager = ParquetCacheManager(cache_dir=new_cache_dir)
         table = pa.table({"col": [1, 2, 3]})
         metadata = CacheMetadata(
-            data_type="test",
+            data_type=DataType.SQ_DATES,
             source_url="https://example.com",
-            fetched_at=datetime.now(timezone.utc),
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            fetched_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
             schema_version=1,
             record_count=3,
         )
 
-        manager.write("test", table, metadata)
+        manager.write(DataType.SQ_DATES, table, metadata)
 
         assert new_cache_dir.exists()
-        assert (new_cache_dir / "test.parquet").exists()
+        assert (new_cache_dir / "sq_dates.parquet").exists()
+
+    def test_write_rejects_data_type_mismatch(
+        self,
+        cache_manager: ParquetCacheManager,
+        sample_table: pa.Table,
+        sample_metadata: CacheMetadata,
+    ) -> None:
+        """write() rejects mismatched data_type and metadata.data_type."""
+        with pytest.raises(ValueError, match="data_type mismatch"):
+            cache_manager.write(DataType.HOLIDAY_TRADING, sample_table, sample_metadata)
+
+    def test_read_metadata_returns_none_for_no_metadata_key(
+        self, cache_manager: ParquetCacheManager, temp_cache_dir: Path
+    ) -> None:
+        """_read_metadata returns None when Parquet has no marketsched metadata key."""
+        table = pa.table({"col": [1, 2, 3]})
+        table = table.replace_schema_metadata({b"other_key": b"value"})
+        pq.write_table(table, temp_cache_dir / "sq_dates.parquet")
+
+        result = cache_manager._read_metadata(DataType.SQ_DATES)
+        assert result is None
+
+    def test_read_metadata_returns_none_for_no_schema_metadata(
+        self, cache_manager: ParquetCacheManager, temp_cache_dir: Path
+    ) -> None:
+        """_read_metadata returns None when Parquet has no schema metadata at all."""
+        table = pa.table({"col": [1, 2, 3]})
+        pq.write_table(table, temp_cache_dir / "sq_dates.parquet")
+
+        result = cache_manager._read_metadata(DataType.SQ_DATES)
+        assert result is None
+
+    def test_falsy_expiry_is_not_replaced_by_default(
+        self, temp_cache_dir: Path
+    ) -> None:
+        """timedelta(0) is preserved, not replaced by default expiry."""
+        zero_expiry = timedelta(0)
+        manager = ParquetCacheManager(cache_dir=temp_cache_dir, expiry=zero_expiry)
+        assert manager.expiry == zero_expiry
