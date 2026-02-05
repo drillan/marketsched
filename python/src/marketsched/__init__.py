@@ -13,6 +13,8 @@ Example:
         True
 """
 
+# Import market implementations to register them
+import marketsched.jpx  # noqa: F401 - registers JPXIndex
 from marketsched.contract_month import ContractMonth
 from marketsched.exceptions import (
     CacheNotAvailableError,
