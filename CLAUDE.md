@@ -9,8 +9,8 @@
 - システムの`python3`コマンドを直接使用しないこと
 - `uv run` を使用:
   ```bash
-  uv run python
-  uv run pytest
+  uv --directory ./python run python
+  uv --directory ./python run pytest
   ```
 
 ## Coding Rules
@@ -32,10 +32,10 @@
 
 コミット前に以下のチェックがすべて通ることを確認:
 ```bash
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy src
-uv run pytest
+uv --directory ./python run ruff check .
+uv --directory ./python run ruff format --check .
+uv --directory ./python run mypy src
+uv --directory ./python run pytest
 ```
 
 ### 判断の優先順位
