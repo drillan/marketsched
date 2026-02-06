@@ -35,8 +35,7 @@ $ mks sq get 2026 3
 {
   "year": 2026,
   "month": 3,
-  "sq_date": "2026-03-13",
-  "market": "jpx-index"
+  "sq_date": "2026-03-13"
 }
 ```
 
@@ -52,7 +51,9 @@ $ mks sq get 2026-03
 
 ```bash
 $ mks -f text sq get 2026 3
-2026年3月のSQ日は 2026-03-13 です
+year: 2026
+month: 3
+sq_date: 2026-03-13
 ```
 
 ## sq list
@@ -76,18 +77,22 @@ $ mks sq list 2026
 {
   "year": 2026,
   "sq_dates": [
-    {"month": 1, "date": "2026-01-09"},
-    {"month": 2, "date": "2026-02-13"},
-    {"month": 3, "date": "2026-03-13"}
-  ],
-  "market": "jpx-index"
+    "2026-01-09",
+    "2026-02-13",
+    "2026-03-13"
+  ]
 }
 ```
 
-**Table出力例**:
+**Text出力例**:
 
 ```bash
-$ mks -f table sq list 2026
+$ mks -f text sq list 2026
+year: 2026
+sq_dates:
+  - 2026-01-09
+  - 2026-02-13
+  - 2026-03-13
 ```
 
 ## sq is
@@ -110,8 +115,7 @@ $ mks sq is 2026-03-13
 ```json
 {
   "date": "2026-03-13",
-  "is_sq_date": true,
-  "market": "jpx-index"
+  "is_sq_date": true
 }
 ```
 
@@ -119,8 +123,10 @@ $ mks sq is 2026-03-13
 
 ```bash
 $ mks -f text sq is 2026-03-13
-2026-03-13 はSQ日です
+date: 2026-03-13
+is_sq_date: Yes
 
 $ mks -f text sq is 2026-03-14
-2026-03-14 はSQ日ではありません
+date: 2026-03-14
+is_sq_date: No
 ```

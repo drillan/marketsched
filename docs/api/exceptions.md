@@ -42,7 +42,7 @@ except marketsched.MarketschedError as e:
 try:
     market = marketsched.get_market("unknown")
 except marketsched.MarketNotFoundError as e:
-    print(e)  # "Market 'unknown' not found. Available: ['jpx-index']"
+    print(e)  # "Market 'unknown' not found. Use marketsched.get_available_markets() to list available markets."
 ```
 
 ## MarketAlreadyRegisteredError

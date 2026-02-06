@@ -22,8 +22,7 @@ $ mks bd is 2026-02-06
 ```json
 {
   "date": "2026-02-06",
-  "is_business_day": true,
-  "market": "jpx-index"
+  "is_business_day": true
 }
 ```
 
@@ -31,10 +30,12 @@ $ mks bd is 2026-02-06
 
 ```bash
 $ mks -f text bd is 2026-02-06
-2026-02-06 は営業日です
+date: 2026-02-06
+is_business_day: Yes
 
 $ mks -f text bd is 2026-02-07
-2026-02-07 は営業日ではありません
+date: 2026-02-07
+is_business_day: No
 ```
 
 ## bd next
@@ -57,8 +58,7 @@ $ mks bd next 2026-02-06
 ```json
 {
   "date": "2026-02-06",
-  "next_business_day": "2026-02-09",
-  "market": "jpx-index"
+  "next_business_day": "2026-02-09"
 }
 ```
 
@@ -66,7 +66,8 @@ $ mks bd next 2026-02-06
 
 ```bash
 $ mks -f text bd next 2026-02-06
-2026-02-06 の翌営業日は 2026-02-09 です
+date: 2026-02-06
+next_business_day: 2026-02-09
 ```
 
 ## bd prev
@@ -89,8 +90,7 @@ $ mks bd prev 2026-02-09
 ```json
 {
   "date": "2026-02-09",
-  "previous_business_day": "2026-02-06",
-  "market": "jpx-index"
+  "previous_business_day": "2026-02-06"
 }
 ```
 
@@ -98,7 +98,8 @@ $ mks bd prev 2026-02-09
 
 ```bash
 $ mks -f text bd prev 2026-02-09
-2026-02-09 の前営業日は 2026-02-06 です
+date: 2026-02-09
+previous_business_day: 2026-02-06
 ```
 
 ## bd list
@@ -123,8 +124,8 @@ $ mks bd list 2026-02-01 2026-02-10
 
 ```json
 {
-  "start": "2026-02-01",
-  "end": "2026-02-10",
+  "start_date": "2026-02-01",
+  "end_date": "2026-02-10",
   "business_days": [
     "2026-02-02",
     "2026-02-03",
@@ -134,15 +135,25 @@ $ mks bd list 2026-02-01 2026-02-10
     "2026-02-09",
     "2026-02-10"
   ],
-  "count": 7,
-  "market": "jpx-index"
+  "count": 7
 }
 ```
 
-**Table出力例**:
+**Text出力例**:
 
 ```bash
-$ mks -f table bd list 2026-02-01 2026-02-10
+$ mks -f text bd list 2026-02-01 2026-02-10
+start_date: 2026-02-01
+end_date: 2026-02-10
+business_days:
+  - 2026-02-02
+  - 2026-02-03
+  - 2026-02-04
+  - 2026-02-05
+  - 2026-02-06
+  - 2026-02-09
+  - 2026-02-10
+count: 7
 ```
 
 ## bd count
@@ -167,10 +178,9 @@ $ mks bd count 2026-02-01 2026-02-28
 
 ```json
 {
-  "start": "2026-02-01",
-  "end": "2026-02-28",
-  "count": 19,
-  "market": "jpx-index"
+  "start_date": "2026-02-01",
+  "end_date": "2026-02-28",
+  "count": 19
 }
 ```
 
@@ -178,5 +188,7 @@ $ mks bd count 2026-02-01 2026-02-28
 
 ```bash
 $ mks -f text bd count 2026-02-01 2026-02-28
-2026-02-01 から 2026-02-28 までの営業日数は 19 日です
+start_date: 2026-02-01
+end_date: 2026-02-28
+count: 19
 ```

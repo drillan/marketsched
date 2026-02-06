@@ -28,8 +28,7 @@ $ mks ss get
 ```json
 {
   "datetime": "2026-02-06T10:00:00+09:00",
-  "session": "day",
-  "market": "jpx-index"
+  "session": "day"
 }
 ```
 
@@ -41,8 +40,7 @@ $ mks ss get 2026-02-06T10:00:00+09:00
 ```json
 {
   "datetime": "2026-02-06T10:00:00+09:00",
-  "session": "day",
-  "market": "jpx-index"
+  "session": "day"
 }
 ```
 
@@ -54,8 +52,7 @@ $ mks ss get 2026-02-06T20:00:00+09:00
 ```json
 {
   "datetime": "2026-02-06T20:00:00+09:00",
-  "session": "night",
-  "market": "jpx-index"
+  "session": "night"
 }
 ```
 
@@ -67,8 +64,7 @@ $ mks ss get 2026-02-06T16:30:00+09:00
 ```json
 {
   "datetime": "2026-02-06T16:30:00+09:00",
-  "session": "closed",
-  "market": "jpx-index"
+  "session": "closed"
 }
 ```
 
@@ -76,23 +72,18 @@ $ mks ss get 2026-02-06T16:30:00+09:00
 
 ```bash
 $ mks -f text ss get 2026-02-06T10:00:00+09:00
-2026-02-06T10:00:00+09:00 は日中立会です
+datetime: 2026-02-06T10:00:00+09:00
+session: day
 ```
 
 **エラー出力（タイムゾーンなし）**:
 
 ```bash
 $ mks ss get 2026-02-06T10:00:00
+# Error: Invalid value: Timezone required: 2026-02-06T10:00:00. Add timezone offset (e.g., +09:00 or +00:00).
 ```
 
-```json
-{
-  "error": "TimezoneRequiredError",
-  "message": "タイムゾーン情報が必要です。例: 2026-02-06T10:00:00+09:00"
-}
-```
-
-終了コード: 1
+終了コード: 2
 
 ## ss is-trading
 
@@ -115,8 +106,7 @@ $ mks ss is-trading 2026-02-06T10:00:00+09:00
 ```json
 {
   "datetime": "2026-02-06T10:00:00+09:00",
-  "is_trading": true,
-  "market": "jpx-index"
+  "is_trading": true
 }
 ```
 
@@ -128,8 +118,7 @@ $ mks ss is-trading 2026-02-06T16:30:00+09:00
 ```json
 {
   "datetime": "2026-02-06T16:30:00+09:00",
-  "is_trading": false,
-  "market": "jpx-index"
+  "is_trading": false
 }
 ```
 
@@ -142,10 +131,12 @@ $ mks ss is-trading
 
 ```bash
 $ mks -f text ss is-trading 2026-02-06T10:00:00+09:00
-取引可能です
+datetime: 2026-02-06T10:00:00+09:00
+is_trading: Yes
 
 $ mks -f text ss is-trading 2026-02-06T16:30:00+09:00
-取引時間外です
+datetime: 2026-02-06T16:30:00+09:00
+is_trading: No
 ```
 
 ## タイムゾーンの指定方法

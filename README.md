@@ -15,7 +15,9 @@
 ### インストール
 
 ```bash
-pip install marketsched
+# 開発版（PyPI 未公開）
+git clone https://github.com/drillan/marketsched.git
+cd marketsched && uv pip install -e ./python
 ```
 
 ### 使い方

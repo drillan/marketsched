@@ -22,12 +22,12 @@ ContractMonth(year: int, month: int)
 ```
 
 year
-: 西暦年（4桁、2000〜2099）
+: 西暦年（0以上の整数）
 
 month
 : 月（1〜12）
 
-**例外**: `ValidationError` -- `year` または `month` が範囲外の場合
+**例外**: `ValidationError` -- `year` が負数、または `month` が範囲外の場合
 
 ```python
 cm = ContractMonth(year=2026, month=3)

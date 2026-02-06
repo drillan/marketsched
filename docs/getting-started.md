@@ -2,13 +2,22 @@
 
 ## インストール
 
+:::{note}
+現在 PyPI には未公開です。開発版をインストールする場合は以下を使用してください。
+:::
+
 ```bash
-pip install marketsched
+# リポジトリをクローンして開発インストール
+git clone https://github.com/drillan/marketsched.git
+cd marketsched
+uv pip install -e ./python
 ```
 
-または [uv](https://docs.astral.sh/uv/) を使用する場合：
+PyPI 公開後は以下でインストールできるようになります：
 
 ```bash
+pip install marketsched
+# または
 uv add marketsched
 ```
 

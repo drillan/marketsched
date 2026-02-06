@@ -18,25 +18,20 @@ $ mks cache status
 
 ```json
 {
-  "caches": [
-    {
-      "data_type": "sq_dates",
-      "cache_path": "/home/user/.cache/marketsched/sq_dates.parquet",
-      "is_valid": true,
-      "fetched_at": "2026-02-05T10:00:00+09:00",
-      "expires_at": "2026-02-06T10:00:00+09:00",
-      "record_count": 48
-    },
-    {
-      "data_type": "holiday_trading",
-      "cache_path": "/home/user/.cache/marketsched/holiday_trading.parquet",
-      "is_valid": true,
-      "fetched_at": "2026-02-05T10:00:00+09:00",
-      "expires_at": "2026-02-06T10:00:00+09:00",
-      "record_count": 15
-    }
-  ],
-  "market": "jpx-index"
+  "sq_dates": {
+    "cache_path": "/home/user/.cache/marketsched/sq_dates.parquet",
+    "is_valid": true,
+    "fetched_at": "2026-02-05T10:00:00+09:00",
+    "expires_at": "2026-02-06T10:00:00+09:00",
+    "record_count": 48
+  },
+  "holiday_trading": {
+    "cache_path": "/home/user/.cache/marketsched/holiday_trading.parquet",
+    "is_valid": true,
+    "fetched_at": "2026-02-05T10:00:00+09:00",
+    "expires_at": "2026-02-06T10:00:00+09:00",
+    "record_count": 15
+  }
 }
 ```
 
@@ -44,24 +39,21 @@ $ mks cache status
 
 ```json
 {
-  "caches": [
-    {
-      "data_type": "sq_dates",
-      "cache_path": "/home/user/.cache/marketsched/sq_dates.parquet",
-      "is_valid": false,
-      "fetched_at": null,
-      "expires_at": null,
-      "record_count": null
-    }
-  ],
-  "market": "jpx-index"
+  "sq_dates": {
+    "cache_path": "/home/user/.cache/marketsched/sq_dates.parquet",
+    "is_valid": false,
+    "fetched_at": null,
+    "expires_at": null,
+    "record_count": null
+  },
+  "holiday_trading": {
+    "cache_path": "/home/user/.cache/marketsched/holiday_trading.parquet",
+    "is_valid": false,
+    "fetched_at": null,
+    "expires_at": null,
+    "record_count": null
+  }
 }
-```
-
-**Table出力例**:
-
-```bash
-$ mks -f table cache status
 ```
 
 ## cache update
@@ -81,8 +73,9 @@ $ mks cache update
 ```json
 {
   "status": "success",
-  "market": "jpx-index",
-  "updated_at": "2026-02-06T10:00:00+09:00"
+  "message": "キャッシュを更新しました",
+  "sq_dates_record_count": 48,
+  "holiday_trading_record_count": 15
 }
 ```
 
@@ -91,8 +84,7 @@ $ mks cache update
 ```json
 {
   "status": "error",
-  "error": "DataFetchError",
-  "message": "JPX公式サイトからのデータ取得に失敗しました"
+  "message": "キャッシュの更新に失敗しました: ..."
 }
 ```
 
@@ -119,8 +111,8 @@ $ mks cache clear
 ```json
 {
   "status": "success",
-  "market": "jpx-index",
-  "cleared_at": "2026-02-06T10:00:00+09:00"
+  "cleared": true,
+  "message": "キャッシュをクリアしました"
 }
 ```
 
