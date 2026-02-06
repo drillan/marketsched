@@ -161,6 +161,15 @@ uv run ruff check .
 uv run ruff format .
 ```
 
+## 詳細ドキュメント
+
+APIリファレンス・CLIリファレンス・アーキテクチャガイドは [docs/](../docs/) を参照してください。
+
+```bash
+# ドキュメントのビルド
+cd docs && make html
+```
+
 ## ライセンス
 
 MIT License
